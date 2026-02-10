@@ -1,10 +1,19 @@
 import numpy as np
 from itertools import product
 
-from visualization import visualize
+from visualization.visualize import visualize_data, visualize_gmm_2d
 from data_generation.basic_manifolds import line_in_2d, circle, swiss_roll
 from vamm import Gaussian
 
+
+def gaussian_ellipse(mean, cov, n_std=2.0):
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    vals, vecs = vals[order], vecs[:, order]
+
+    angle = np.degrees(np.arctan2(*vecs[:,0][::-1]))
+    width, height = 2 * n_std * np.sqrt(vals)
+    return width, height, angle
 
 
 def run(cov_type, shared, data, num_components, manifold_dimension, seed):
@@ -25,6 +34,15 @@ def run(cov_type, shared, data, num_components, manifold_dimension, seed):
         rng=rng,
     )
     print(f"Objective = {obj:<10.5f}\n")
+
+    active = model.active
+    means = model.means[:active]
+    covs = model.covariances[:active]
+    priors = model.prior[:active]
+
+    # visualisation
+    if D == 2:
+        visualize_gmm_2d(data, means, covs, priors)
 
 
 
@@ -61,9 +79,10 @@ def main():
     # train the gaussian model
     for cov_type, shared in product(cov_types, shared_list):
         obj = run(cov_type, shared, data, C, H, seed)
+        
+    visualize_data(data)
+    
 
-    # visualize the data; TODO: visualize the resulting gaussian-components
-    visualize.visualize_data(data)
 
 
 if __name__ == "__main__":
