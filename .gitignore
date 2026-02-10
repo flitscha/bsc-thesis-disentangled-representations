@@ -1,5 +1,5 @@
 results/
-literature/
+papers/
 __pycache__/
 *.pyc
 .env
