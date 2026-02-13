@@ -23,6 +23,12 @@ def visualize_data(data):
         print("visualisation of dimension higher than 3 is not supported yet.")
 
 
+def visualize_embedded_data(data, projection_matrix):
+    projected_data = data @ projection_matrix
+    N, D = projected_data.shape
+    visualize_data(projected_data)
+
+
 def visualize_gmm_2d(data, means, covariances, priors):
     """
     Plot 2D data and Gaussian components as ellipses.
@@ -118,3 +124,22 @@ def visualize_gmm_3d(data, means, covariances, priors):
     plt.tight_layout()
     plt.show()
 
+
+
+def visualize_gmm_higher_dimension(data, means, covariances, priors, projection_matrix):
+    """
+    visualize data in higher dimensions by projecting it down using the projection_matrix
+    """
+    projected_data = data @ projection_matrix
+    projected_means = means @ projection_matrix
+    projected_covariances = [
+        projection_matrix.T @ sigma @ projection_matrix
+        for sigma in covariances
+    ]
+    
+    N, D = projected_data.shape
+    if D == 2:
+        visualize_gmm_2d(projected_data, projected_means, projected_covariances, priors)
+    if D == 3:
+        visualize_gmm_3d(projected_data, projected_means, projected_covariances, priors)
+    

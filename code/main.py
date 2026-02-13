@@ -1,8 +1,8 @@
 import numpy as np
 from itertools import product
 
-from visualization.visualize import visualize_data, visualize_gmm_2d, visualize_gmm_3d
-from data_generation.basic_manifolds import line_in_2d, circle, swiss_roll
+from visualization.visualize import visualize_data, visualize_gmm_2d, visualize_gmm_3d, visualize_embedded_data, visualize_gmm_higher_dimension
+from data_generation.basic_manifolds import line_in_2d, circle, swiss_roll, embed_data_to_dimension
 from vamm import Gaussian
 
 
@@ -16,7 +16,7 @@ def gaussian_ellipse(mean, cov, n_std=2.0):
     return width, height, angle
 
 
-def run(cov_type, shared, data, num_components, manifold_dimension, seed):
+def run(cov_type, shared, data, num_components, manifold_dimension, projection_matrix=None, seed=123):
     N, D = data.shape
     rng = np.random.default_rng(seed)
 
@@ -45,11 +45,12 @@ def run(cov_type, shared, data, num_components, manifold_dimension, seed):
         visualize_gmm_2d(data, means, covs, priors)
     if D == 3:
         visualize_gmm_3d(data, means, covs, priors)
+    else:
+        visualize_gmm_higher_dimension(data, means, covs, priors, projection_matrix)
 
 
 
-
-def main():
+def test_using_basic_data():
     #cov_types = ["isotropic", "diagonal", "mfa", "full"]
     #shared_list = [True, False]
     cov_types = ["mfa", "full"]
@@ -86,6 +87,34 @@ def main():
         obj = run(cov_type, shared, data, C, H, seed)
 
     #visualize_data(data)
+
+
+def test_high_dimensional_data():
+    cov_types = ["mfa", "full"]
+    shared_list = [False]
+
+    C = 15
+    H = 1
+    n = 1000
+    data = line_in_2d(n)
+
+    data_high, projection_matrix = embed_data_to_dimension(data, 50, noise_std=0.001)
+
+    # train on high dimensional data
+    for cov_type, shared in product(cov_types, shared_list):
+        obj = run(cov_type, shared, data_high, C, H, projection_matrix=projection_matrix)
+
+
+    visualize_embedded_data(data_high, projection_matrix)
+    # TODO: analyze the results. Why is the objective-number roughly the same, but the results of mfa seem to be much worse?
+
+
+
+
+def main():
+    #test_using_basic_data()
+    test_high_dimensional_data()
+    
     
 
 
