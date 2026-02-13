@@ -1,7 +1,7 @@
 import numpy as np
 from itertools import product
 
-from visualization.visualize import visualize_data, visualize_gmm_2d
+from visualization.visualize import visualize_data, visualize_gmm_2d, visualize_gmm_3d
 from data_generation.basic_manifolds import line_in_2d, circle, swiss_roll
 from vamm import Gaussian
 
@@ -43,20 +43,24 @@ def run(cov_type, shared, data, num_components, manifold_dimension, seed):
     # visualisation
     if D == 2:
         visualize_gmm_2d(data, means, covs, priors)
+    if D == 3:
+        visualize_gmm_3d(data, means, covs, priors)
 
 
 
 
 def main():
-    cov_types = ["isotropic", "diagonal", "mfa", "full"]
-    shared_list = [True, False]
+    #cov_types = ["isotropic", "diagonal", "mfa", "full"]
+    #shared_list = [True, False]
+    cov_types = ["mfa", "full"]
+    shared_list = [False]
 
     C = 15 # gaussian components
     H = 1 # internal manifold-dimension
     seed = 123
     rng = np.random.default_rng(seed)
 
-    n = 200 # number of data points
+    n = 100 # number of data points
     data = line_in_2d(n)
 
     print("Select dataset to visualize:")
@@ -70,7 +74,8 @@ def main():
     elif choice == "2":
         data = circle(n)
     elif choice == "3":
-        n = 800
+        n = 1200
+        C = 25
         H = 2 # this manifold is 2-dimensional. (TODO: why is the objective lower, when using H=1?)
         data = swiss_roll(n)
     else:
@@ -79,8 +84,8 @@ def main():
     # train the gaussian model
     for cov_type, shared in product(cov_types, shared_list):
         obj = run(cov_type, shared, data, C, H, seed)
-        
-    visualize_data(data)
+
+    #visualize_data(data)
     
 
 
