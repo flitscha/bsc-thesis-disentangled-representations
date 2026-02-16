@@ -2,8 +2,6 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import numpy as np
 
-from data_generation.basic_manifolds import line_in_2d, circle, swiss_roll
-
 
 def visualize_data(data):
     N, D = data.shape
@@ -29,11 +27,12 @@ def visualize_embedded_data(data, projection_matrix):
     visualize_data(projected_data)
 
 
-def visualize_gmm_2d(data, means, covariances, priors):
+def visualize_gmm_2d(ax, data, means, covariances, priors):
     """
     Plot 2D data and Gaussian components as ellipses.
     """
-    fig, ax = plt.subplots()
+    if ax is None:
+        fig, ax = plt.subplots()
 
     ax.scatter(data[:, 0], data[:, 1], s=10, alpha=0.8, label="Data")
 
@@ -59,12 +58,6 @@ def visualize_gmm_2d(data, means, covariances, priors):
 
         ax.add_patch(ell)
         ax.scatter(*mean, c="red", s=30)
-
-    ax.set_title("GMM Components")
-    ax.set_aspect("equal", adjustable="datalim")
-    ax.legend()
-    plt.show()
-
 
 
 def plot_ellipsoid(ax, mean, cov, n_std=2.0, resolution=20, color="orange", alpha=0.2):
@@ -113,20 +106,22 @@ def plot_ellipsoid(ax, mean, cov, n_std=2.0, resolution=20, color="orange", alph
 
 
 
-def visualize_gmm_3d(data, means, covariances, priors):
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+def visualize_gmm_3d(ax, data, means, covariances, priors):
     ax.scatter(data[:, 0], data[:, 1], data[:, 2], s=5, alpha=0.8, label="Data")
 
     for mean, cov, prior in zip(means, covariances, priors):
         plot_ellipsoid(ax, mean, cov)
 
-    plt.tight_layout()
-    plt.show()
+
+def visualize_gmm(ax, data, means, covariances, priors):
+    N, D = data.shape
+    if D == 2:
+        visualize_gmm_2d(ax, data, means, covariances, priors)
+    if D == 3:
+        visualize_gmm_3d(ax, data, means, covariances, priors)
 
 
-
-def visualize_gmm_higher_dimension(data, means, covariances, priors, projection_matrix):
+def visualize_gmm_higher_dimension(ax, data, means, covariances, priors, projection_matrix):
     """
     visualize data in higher dimensions by projecting it down using the projection_matrix
     """
@@ -139,7 +134,7 @@ def visualize_gmm_higher_dimension(data, means, covariances, priors, projection_
     
     N, D = projected_data.shape
     if D == 2:
-        visualize_gmm_2d(projected_data, projected_means, projected_covariances, priors)
+        visualize_gmm_2d(ax, projected_data, projected_means, projected_covariances, priors)
     if D == 3:
-        visualize_gmm_3d(projected_data, projected_means, projected_covariances, priors)
+        visualize_gmm_3d(ax, projected_data, projected_means, projected_covariances, priors)
     

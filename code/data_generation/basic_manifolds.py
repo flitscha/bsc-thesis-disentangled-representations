@@ -9,7 +9,7 @@ def line_in_2d(n=500):
 
 
 def circle(n=500):
-    theta = np.linspace(0, 2*np.pi, n)
+    theta = np.linspace(0, 2 * np.pi, n)
     x = np.cos(theta)
     y = np.sin(theta)
     return np.stack([x, y], axis=1)
@@ -23,7 +23,7 @@ def swiss_roll(n=1000):
     return np.stack([x, y, z], axis=1)
 
 
-def embed_data_to_dimension(data, new_dimension, noise_std=0.005, random_rotation=True, random_state=None):
+def embed_data_to_dimension(data, new_dimension, noise=0.005, random_rotation=True, random_state=None):
     """
     Embed low-dimensional data into a higher-dimensional space.
 
@@ -72,13 +72,9 @@ def embed_data_to_dimension(data, new_dimension, noise_std=0.005, random_rotatio
 
     data_high = data @ W.T
 
-    if noise_std > 0:
+    if noise > 0:
         data_high += rng.normal(
-            scale=noise_std, size=data_high.shape
+            scale=noise, size=data_high.shape
         )
 
     return data_high, W
-
-
-
-    
