@@ -5,7 +5,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 from experiment import Experiment
-from visualization.visualize import visualize_gmm, visualize_gmm_higher_dimension
+from visualization.visualize import visualize_gmm
 
 class Demo:
     def __init__(self):
@@ -25,6 +25,8 @@ class Demo:
         self._init_settings(setting_frame, plot_frame)
         self._set_padding(setting_frame)
         self._init_plot(plot_frame)
+
+        self.experiment = None
 
 
     def _init_settings(self, setting_frame, plot_frame):
@@ -73,6 +75,29 @@ class Demo:
         # Train button
         ttk.Button(master=setting_frame, text="Train", command=lambda: self._train(plot_frame)).grid(column=1, row=8)
 
+        # draw points toggle
+        self.draw_points = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            master=setting_frame, text="Draw Points", onvalue=True, offvalue=False, 
+            variable=self.draw_points, command=lambda: self._update_plot(plot_frame)
+        ).grid(column=0, row=9, sticky=tk.W)
+
+        # simplified visualisation
+        self.simplified_visualisation = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            master=setting_frame, text="Simplified Visualisation", onvalue=True, offvalue=False,
+            variable=self.simplified_visualisation, command=lambda: self._update_plot(plot_frame)
+        ).grid(column=1, row=9, sticky=tk.W)
+
+        # draw means toggle
+        self.draw_means = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            master=setting_frame, text="Draw Means", onvalue=True, offvalue=False,
+            variable=self.draw_means, command=lambda: self._update_plot(plot_frame)
+        ).grid(column=0, row=10, sticky=tk.W)
+        
+        # TODO: setting for error range in embedded data?
+
 
     def _init_plot(self, plot_frame, is_3d=False):
         # destroy existing plot
@@ -101,7 +126,7 @@ class Demo:
     
 
     def _train(self, plot_frame):
-        experiment = Experiment(
+        self.experiment = Experiment(
             data_type=self.data_var.get(),
             N=self.num_points.get(),
             C=self.num_components.get(),
@@ -110,12 +135,20 @@ class Demo:
             shared=self.shared_cov.get(),
             embed_dim=self.embed_dim.get(),
         )
-        experiment.generate_data()
-        experiment.train()
+        self.experiment.generate_data()
+        self.experiment.train()
 
         # visualize results
-        print("obj:", experiment.obj)
-        
+        print("obj:", self.experiment.obj)
+        self._update_plot(plot_frame)
+    
+
+
+    def _update_plot(self, plot_frame):
+        # return, if there is no data to plot
+        if self.experiment is None:
+            return
+
         # init plot
         is_3d = False
         if self.data_var.get() == "swiss_roll":
@@ -123,13 +156,17 @@ class Demo:
         self._init_plot(plot_frame, is_3d=is_3d)
 
         # plot results
-        if self.embed_dim.get() == 0:
-            visualize_gmm(self.ax, experiment.data, experiment.model.means, experiment.model.covariances, experiment.model.prior)
-        else:
-            visualize_gmm_higher_dimension(
-                self.ax, experiment.data, experiment.model.means, experiment.model.covariances, experiment.model.prior, experiment.projection_matrix
-            )
-            
+        visualize_gmm(
+            ax=self.ax, 
+            data=self.experiment.data, 
+            means=self.experiment.model.means, 
+            covariances=self.experiment.model.covariances, 
+            priors=self.experiment.model.prior,
+            projection_matrix=self.experiment.projection_matrix,
+            draw_points=self.draw_points.get(),
+            simplified_visualisation=self.simplified_visualisation.get(),
+            draw_means=self.draw_means.get()
+        )
 
 
     def main_loop(self):
