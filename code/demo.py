@@ -82,19 +82,32 @@ class Demo:
             variable=self.draw_points, command=lambda: self._update_plot(plot_frame)
         ).grid(column=0, row=9, sticky=tk.W)
 
-        # simplified visualisation
-        self.simplified_visualisation = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            master=setting_frame, text="Simplified Visualisation", onvalue=True, offvalue=False,
-            variable=self.simplified_visualisation, command=lambda: self._update_plot(plot_frame)
-        ).grid(column=1, row=9, sticky=tk.W)
+        # visualisation mode for the gaussian-components
+        ttk.Label(master=setting_frame, text="Visualisation Mode:").grid(column=0, row=10, sticky=tk.W)
+        self.visualisation_mode = tk.StringVar(value="ellipsoid")
+        ttk.Radiobutton(
+            master=setting_frame, text="Ellipsoid", variable=self.visualisation_mode, 
+            value="ellipsoid", command=lambda: self._update_plot(plot_frame)
+        ).grid(column=0, row=11, sticky=tk.W)
+        ttk.Radiobutton(
+            master=setting_frame, text="Line", variable=self.visualisation_mode, 
+            value="line", command=lambda: self._update_plot(plot_frame)
+        ).grid(column=0, row=12, sticky=tk.W)
+        ttk.Radiobutton(
+            master=setting_frame, text="Plane", variable=self.visualisation_mode, 
+            value="plane", command=lambda: self._update_plot(plot_frame)
+        ).grid(column=1, row=11, sticky=tk.W)
+        ttk.Radiobutton(
+            master=setting_frame, text="None", variable=self.visualisation_mode, 
+            value="none", command=lambda: self._update_plot(plot_frame)
+        ).grid(column=1, row=12, sticky=tk.W)
 
         # draw means toggle
         self.draw_means = tk.BooleanVar(value=True)
         ttk.Checkbutton(
             master=setting_frame, text="Draw Means", onvalue=True, offvalue=False,
             variable=self.draw_means, command=lambda: self._update_plot(plot_frame)
-        ).grid(column=0, row=10, sticky=tk.W)
+        ).grid(column=1, row=9, sticky=tk.W)
         
         # TODO: setting for error range in embedded data?
 
@@ -141,7 +154,6 @@ class Demo:
         # visualize results
         print("obj:", self.experiment.obj)
         self._update_plot(plot_frame)
-    
 
 
     def _update_plot(self, plot_frame):
@@ -164,7 +176,7 @@ class Demo:
             priors=self.experiment.model.prior,
             projection_matrix=self.experiment.projection_matrix,
             draw_points=self.draw_points.get(),
-            simplified_visualisation=self.simplified_visualisation.get(),
+            visualisation_mode=self.visualisation_mode.get(),
             draw_means=self.draw_means.get()
         )
 

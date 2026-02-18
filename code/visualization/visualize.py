@@ -54,7 +54,6 @@ def plot_line(ax, mean, cov, prior, length=0.5):
     vals, vecs = np.linalg.eigh(cov)
 
     # use the eigenvector with the biggest eigenvalue as direction
-    # TODO: make the line red, if more than one eigenvalue is big?
     idx = np.argmax(vals)
     direction = vecs[:, idx]
 
@@ -73,7 +72,10 @@ def plot_line(ax, mean, cov, prior, length=0.5):
     )
 
 
-def visualize_gmm_2d(ax, data, means, covariances, priors, draw_points=True, simplified_visualisation=False, draw_means=True):
+def visualize_gmm_2d(
+    ax, data, means, covariances, priors, draw_points=True, 
+    visualisation_mode="ellipsoid", draw_means=True
+):
     """
     Plot 2D data and Gaussian components as ellipses.
     """
@@ -94,12 +96,17 @@ def visualize_gmm_2d(ax, data, means, covariances, priors, draw_points=True, sim
     ax.set_ylim(y_min - padding, y_max + padding)
 
     # draw the lines to visualize the covariances
-    if simplified_visualisation is False:
-        for mean, cov, prior in zip(means, covariances, priors):
-            plot_ellipse(ax, mean, cov, prior)
-    else:
-        for mean, cov, prior in zip(means, covariances, priors):
-            plot_line(ax, mean, cov, prior)
+    plot_functions = {
+        "ellipsoid": plot_ellipse,
+        "line": plot_line,
+        "plane": plot_line, # just draw the line, since we are in a 2d-plot
+        "none": lambda ax, mean, cov, prior: None,
+    }
+
+    plot_function = plot_functions[visualisation_mode]
+
+    for mean, cov, prior in zip(means, covariances, priors):
+        plot_function(ax, mean, cov, prior)
 
 
 def plot_ellipsoid(ax, mean, cov, resolution=20, color="orange", alpha=0.2):
@@ -172,31 +179,54 @@ def plot_plane(ax, mean, cov, size=3.0, color="orange", alpha=0.2):
     Z = np.array([[p1[2], p2[2]],
                   [p3[2], p4[2]]])
 
-    # TODO: make the plane red, if more than two eigenvalues are big
-
     ax.plot_surface(X, Y, Z, color=color, alpha=alpha)
 
 
+def plot_line_in_3d(ax, mean, cov, length=3.0, color="orange", alpha=0.8):
+    vals, vecs = np.linalg.eigh(cov)
+    idx = np.argmax(vals)
+    direction = vecs[:, idx]
+    direction = direction * (length / 2.0)
 
-def visualize_gmm_3d(ax, data, means, covariances, priors, draw_points=True, simplified_visualisation=False, draw_means=True):
-    # TODO: use the H-value to decide if we want to draw planes or lines
+    p1 = mean - direction
+    p2 = mean + direction
+
+    ax.plot(
+        [p1[0], p2[0]],
+        [p1[1], p2[1]],
+        [p1[2], p2[2]],
+        color="orange",
+        linewidth=3.0,
+        alpha=alpha
+    )
+
+
+def visualize_gmm_3d(
+    ax, data, means, covariances, priors, draw_points=True, 
+    visualisation_mode="ellipsoid", draw_means=True
+):
     if draw_points:
         ax.scatter(data[:, 0], data[:, 1], data[:, 2], s=5, alpha=0.8, label="Data")
 
     if draw_means:
         ax.scatter(means[:, 0], means[:, 1], means[:, 2], s=10, label="Means", c="red")
 
-    if simplified_visualisation is False:
-        for mean, cov, prior in zip(means, covariances, priors):
-            plot_ellipsoid(ax, mean, cov)
-    else:
-        for mean, cov, prior in zip(means, covariances, priors):
-            plot_plane(ax, mean, cov)
+    plot_functions = {
+        "ellipsoid": plot_ellipsoid,
+        "line": plot_line_in_3d,
+        "plane": plot_plane,
+        "none": lambda ax, mean, cov: None,
+    }
+
+    plot_function = plot_functions[visualisation_mode]
+
+    for mean, cov, prior in zip(means, covariances, priors):
+        plot_function(ax, mean, cov)
 
 
 def _visualize_gmm_higher_dimension(
     ax, data, means, covariances, priors, projection_matrix, 
-    draw_points=True, simplified_visualisation=False, draw_means=True
+    draw_points=True, visualisation_mode="ellipsoid", draw_means=True
 ):
     """
     visualize data in higher dimensions by projecting it down using the projection_matrix
@@ -217,7 +247,7 @@ def _visualize_gmm_higher_dimension(
             projected_covariances, 
             priors, 
             draw_points=draw_points, 
-            simplified_visualisation=simplified_visualisation,
+            visualisation_mode=visualisation_mode,
             draw_means=draw_means
         )
     if D == 3:
@@ -228,7 +258,7 @@ def _visualize_gmm_higher_dimension(
             projected_covariances, 
             priors, 
             draw_points=draw_points, 
-            simplified_visualisation=simplified_visualisation,
+            visualisation_mode=visualisation_mode,
             draw_means=draw_means
         )
 
@@ -241,23 +271,26 @@ def visualize_gmm(
     priors, 
     projection_matrix=None,
     draw_points=True, 
-    simplified_visualisation=False,
+    visualisation_mode="ellipsoid",
     draw_means=True
 ):
     if projection_matrix is not None:
-        _visualize_gmm_higher_dimension(ax, data, means, covariances, priors, projection_matrix, draw_points, simplified_visualisation)
+        _visualize_gmm_higher_dimension(
+            ax, data, means, covariances, priors, projection_matrix, 
+            draw_points, visualisation_mode, draw_means
+        )
         return
 
     N, D = data.shape
     if D == 2:
         visualize_gmm_2d(
             ax, data, means, covariances, priors, draw_points=draw_points, 
-            simplified_visualisation=simplified_visualisation, draw_means=draw_means
+            visualisation_mode=visualisation_mode, draw_means=draw_means
         )
     if D == 3:
         visualize_gmm_3d(
             ax, data, means, covariances, priors, draw_points=draw_points, 
-            simplified_visualisation=simplified_visualisation, draw_means=draw_means
+            visualisation_mode=visualisation_mode, draw_means=draw_means
         )
 
 
