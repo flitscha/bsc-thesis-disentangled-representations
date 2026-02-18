@@ -94,6 +94,7 @@ def visualize_gmm_2d(
     padding = 0.5
     ax.set_xlim(x_min - padding, x_max + padding)
     ax.set_ylim(y_min - padding, y_max + padding)
+    ax.set_aspect("equal")
 
     # draw the lines to visualize the covariances
     plot_functions = {
@@ -210,6 +211,15 @@ def visualize_gmm_3d(
 
     if draw_means:
         ax.scatter(means[:, 0], means[:, 1], means[:, 2], s=10, label="Means", c="red")
+
+    # set limits
+    x_min, y_min, z_min = data.min(axis=0)
+    x_max, y_max, z_max = data.max(axis=0)
+    padding = 0.5
+    ax.set_xlim(x_min - padding, x_max + padding)
+    ax.set_ylim(y_min - padding, y_max + padding)
+    ax.set_zlim(z_min - padding, z_max + padding)
+    ax.set_aspect("equal")
 
     plot_functions = {
         "ellipsoid": plot_ellipsoid,

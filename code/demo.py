@@ -34,7 +34,7 @@ class Demo:
         ttk.Label(master=setting_frame, text="Data: ").grid(column=0, row=1, sticky=tk.W)
         self.data_var = tk.StringVar(value='circle')
         data_box = ttk.Combobox(master=setting_frame, width=9, textvariable=self.data_var)
-        data_box['values'] = ('line', 'circle', 'swiss_roll')
+        data_box['values'] = ('line', 'circle', 'swiss_roll', 'torus', 'curve_in_3d')
         data_box.state(["readonly"])
         data_box.grid(column=1, row=1)
 
@@ -163,7 +163,7 @@ class Demo:
 
         # init plot
         is_3d = False
-        if self.data_var.get() == "swiss_roll":
+        if self.data_var.get() in ["swiss_roll", "torus", "curve_in_3d"]:
             is_3d = True
         self._init_plot(plot_frame, is_3d=is_3d)
 

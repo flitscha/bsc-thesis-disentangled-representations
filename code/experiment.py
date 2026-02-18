@@ -3,6 +3,8 @@ from data_generation.basic_manifolds import (
     circle,
     swiss_roll,
     embed_data_to_dimension,
+    torus,
+    curve_in_3d
 )
 from vamm import Gaussian
 
@@ -47,6 +49,10 @@ class Experiment:
             data = circle(n=self.N)
         elif self.data_type == "swiss_roll":
             data = swiss_roll(n=self.N)
+        elif self.data_type == "torus":
+            data = torus(n=self.N)
+        elif self.data_type == "curve_in_3d":
+            data = curve_in_3d(n=self.N)
         else:
             print('warning: data type "' + self.data_type + '" does not exist')
 

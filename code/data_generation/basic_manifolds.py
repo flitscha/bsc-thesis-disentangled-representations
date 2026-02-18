@@ -1,5 +1,6 @@
 import numpy as np
 
+# TODO: make everything reproducable (random seed as input)
 
 def line_in_2d(n=500):
     t = np.linspace(-3, 3, n)
@@ -20,6 +21,27 @@ def swiss_roll(n=1000):
     x = t * np.cos(t)
     y = 21 * np.random.rand(n)
     z = t * np.sin(t)
+    return np.stack([x, y, z], axis=1)
+
+
+def torus(n=1000, R=15.0, r=5.0):
+    theta = 2 * np.pi * np.random.random(n)
+    phi = 2 * np.pi * np.random.random(n)
+
+    x = (R + r * np.cos(theta)) * np.cos(phi)
+    y = (R + r * np.cos(theta)) * np.sin(phi)
+    z = r * np.sin(theta)
+
+    return np.stack([x, y, z], axis=1)
+
+
+def curve_in_3d(n=1000):
+    t = np.linspace(start=0.0, stop=6*np.pi, num=n)
+
+    x = 15 * np.cos(t)
+    y = 15 * np.sin(2 * t)
+    z = 15 * np.sin(3 * t)
+
     return np.stack([x, y, z], axis=1)
 
 
