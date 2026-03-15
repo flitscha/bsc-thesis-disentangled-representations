@@ -7,7 +7,7 @@ PATH = "../data/dsprites/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz"
 
 def show_random_images(X, n=64):
     """
-    Zeigt n zufällige Bilder aus einem (N,4096)-Array.
+    shows n random images from an (N,4096) array
     """
     assert X.ndim == 2 and X.shape[1] == 64*64
 
