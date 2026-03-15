@@ -57,7 +57,7 @@ def save_model(model):
     """
     cpp = model._cpp
     os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-    np.savez(
+    np.savez_compressed(
         MODEL_PATH,
         means    = cpp.means,
         variance = cpp.variance,
@@ -76,6 +76,7 @@ def load_model():
     Creates a fresh model, runs a dummy fit to initialise _cpp,
     then overwrites all parameters with the saved values.
     """
+    print("Load model...")
     saved = np.load(MODEL_PATH)
     C_ = int(saved["C"])
     D_ = int(saved["D"])
@@ -150,7 +151,7 @@ def show_images(imgs, title="Generated dSprites samples"):
  
 def main():
     # 1. load saved model, or train + save a new one
-    if False:#os.path.exists(MODEL_PATH):
+    if os.path.exists(MODEL_PATH):
         model = load_model()
     else:
         X = load_data()
