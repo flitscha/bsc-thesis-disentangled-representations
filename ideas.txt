@@ -1,0 +1,15 @@
+Wir haben gaussian-komponente und die Ableitungen an dieser Stelle.
+
+Um Interpolation (z.b. cubic splines) anwenden zu können, brauchen wir eine Reihenfolge dieser Komponenten.
+
+
+Idee: Sowas wie TDA machen.
+
+Das Ziel ist es einen ungerichteten Graph zu erstellen, wo die Knoten genau die Gaussian-Means sind.
+
+Ein Punkt verbindet sich genau mit den 2 nähsten Punkte.
+Dabei wird aber nicht nur der euklidische Abstand berücksichtigt, sondern auch die Ableitung. (Die Ableitungen sollten ungefähr gleich sein.)
+
+
+Bemerkung: "falsch" gelernte komponenten werden automatisch bestraft.
+

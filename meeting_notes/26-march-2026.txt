@@ -1,0 +1,54 @@
+
+- Visualisierung von künstlichen Daten + mfa training gezeigt.
+
+- Zielsetzungen besprochen:
+
+
+
+- Initialpräsentation festgelegt auf 14. April
+
+
+- Was soll ich machen?
+Zuerst: Mithilfe von qubic splines die Kreis-daten interpolieren.
+Dabei muss man falsche bzw redundante mfa-Komponenten vorher entfernen.
+Oder (schwieriger): Die VAMM-Bibliothek weiterentwickeln, sodass sowas gar nicht mehr passiert. (prior-annahme, dass alles smooth ist)
+
+Danach überlegen, wie man die Methode verallgemeinern kann auf höhere Dimensionen.
+
+Anwendung: Eine Zahl im MNIST Datensatz hernehmen, und rotieren. Man sollte im 700-Dimensionalen Raum eine 1-Dimensionale Schleife finden.
+
+
+- Interessante Beispiele:
+Objekt dreht sich (z.b. die 0 in MNIST).
+Bei 0 Grad und 180 Grad schaut es genau gleich aus.
+
+- Bei Literatur Recherche aufpassen:
+Einige Definitionen sagen, dass variational-factors unkorrelliert sein müssen.
+Das stimmt nicht! 
+Beispiel: MNIST Datensatz disentanglen, indem man jede Zahl in Segmente Aufteilt.
+Man hat z.b. 20 Segmente. Für jede Zahl: segment_i ist dabei oder nicht dabei. (Diskretes Disentanglement)
+
+- Ausblick:
+Encoder-Decoder Modelle machen. Und im Latent-Space mfa machen, und disentanglement.
+
+
+- Wie lang soll die Arbeit sein?
+Nicht wichtig. Qualität ist entscheident. Aber standard ist 30 bis 50 Seiten.
+
+
+- Struktur der Arbeit:
+Disentanglement definieren, und theorie machen. Im zweiten Teil meine Methoden und Experimente erklären. 
+Wie kann man die Theorie in der Praxis anwenden?
+
+
+- Forschungsfrage:
+Kann man mithilfe von geometrischen Eigenschaften an eine disentangled representation kommen?
+
+
+
+
+- Begriffe:
+- geometric motivated Disentanglement
+- Density Learning
+
+- normalizing flows (wahrscheinlich nicht relevant)
