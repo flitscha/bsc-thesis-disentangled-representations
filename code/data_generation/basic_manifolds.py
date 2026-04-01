@@ -2,6 +2,7 @@ import numpy as np
 
 # TODO: make everything reproducable (random seed as input)
 
+
 def line_in_2d(n=500):
     t = np.linspace(-3, 3, n)
     x = t

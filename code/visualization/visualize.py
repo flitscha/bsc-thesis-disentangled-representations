@@ -35,7 +35,7 @@ def plot_ellipse(ax, mean, cov, prior):
 
     angle = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
 
-    vals = np.clip(vals, 1e-8, None) # avoid negative eigenvalues
+    vals = np.clip(vals, 1e-8, None)  # avoid negative eigenvalues
     width, height = 4 * np.sqrt(vals)
 
     ell = Ellipse(
@@ -44,7 +44,7 @@ def plot_ellipse(ax, mean, cov, prior):
         height=height,
         angle=angle,
         color="orange",
-        alpha=min(0.6, 0.2 + prior * 3), # scale visibility by prior
+        alpha=min(0.6, 0.2 + prior * 3),  # scale visibility by prior
     )
 
     ax.add_patch(ell)
@@ -73,7 +73,7 @@ def plot_line(ax, mean, cov, prior, length=0.5):
 
 
 def visualize_gmm_2d(
-    ax, data, means, covariances, priors, draw_points=True, 
+    ax, data, means, covariances, priors, draw_points=True,
     visualisation_mode="ellipsoid", draw_means=True
 ):
     """
@@ -100,7 +100,7 @@ def visualize_gmm_2d(
     plot_functions = {
         "ellipsoid": plot_ellipse,
         "line": plot_line,
-        "plane": plot_line, # just draw the line, since we are in a 2d-plot
+        "plane": plot_line,  # just draw the line, since we are in a 2d-plot
         "none": lambda ax, mean, cov, prior: None,
     }
 
@@ -203,14 +203,16 @@ def plot_line_in_3d(ax, mean, cov, length=3.0, color="orange", alpha=0.8):
 
 
 def visualize_gmm_3d(
-    ax, data, means, covariances, priors, draw_points=True, 
+    ax, data, means, covariances, priors, draw_points=True,
     visualisation_mode="ellipsoid", draw_means=True
 ):
     if draw_points:
-        ax.scatter(data[:, 0], data[:, 1], data[:, 2], s=5, alpha=0.8, label="Data")
+        ax.scatter(data[:, 0], data[:, 1], data[:, 2],
+                   s=5, alpha=0.8, label="Data")
 
     if draw_means:
-        ax.scatter(means[:, 0], means[:, 1], means[:, 2], s=10, label="Means", c="red")
+        ax.scatter(means[:, 0], means[:, 1], means[:, 2],
+                   s=10, label="Means", c="red")
 
     # set limits
     x_min, y_min, z_min = data.min(axis=0)
@@ -235,7 +237,7 @@ def visualize_gmm_3d(
 
 
 def _visualize_gmm_higher_dimension(
-    ax, data, means, covariances, priors, projection_matrix, 
+    ax, data, means, covariances, priors, projection_matrix,
     draw_points=True, visualisation_mode="ellipsoid", draw_means=True
 ):
     """
@@ -247,46 +249,46 @@ def _visualize_gmm_higher_dimension(
         projection_matrix.T @ sigma @ projection_matrix
         for sigma in covariances
     ]
-    
+
     N, D = projected_data.shape
     if D == 2:
         visualize_gmm_2d(
-            ax, 
-            projected_data, 
-            projected_means, 
-            projected_covariances, 
-            priors, 
-            draw_points=draw_points, 
+            ax,
+            projected_data,
+            projected_means,
+            projected_covariances,
+            priors,
+            draw_points=draw_points,
             visualisation_mode=visualisation_mode,
             draw_means=draw_means
         )
     if D == 3:
         visualize_gmm_3d(
-            ax, 
-            projected_data, 
-            projected_means, 
-            projected_covariances, 
-            priors, 
-            draw_points=draw_points, 
+            ax,
+            projected_data,
+            projected_means,
+            projected_covariances,
+            priors,
+            draw_points=draw_points,
             visualisation_mode=visualisation_mode,
             draw_means=draw_means
         )
 
 
 def visualize_gmm(
-    ax, 
-    data, 
-    means, 
-    covariances, 
-    priors, 
+    ax,
+    data,
+    means,
+    covariances,
+    priors,
     projection_matrix=None,
-    draw_points=True, 
+    draw_points=True,
     visualisation_mode="ellipsoid",
     draw_means=True
 ):
     if projection_matrix is not None:
         _visualize_gmm_higher_dimension(
-            ax, data, means, covariances, priors, projection_matrix, 
+            ax, data, means, covariances, priors, projection_matrix,
             draw_points, visualisation_mode, draw_means
         )
         return
@@ -294,18 +296,79 @@ def visualize_gmm(
     N, D = data.shape
     if D == 2:
         visualize_gmm_2d(
-            ax, data, means, covariances, priors, draw_points=draw_points, 
+            ax, data, means, covariances, priors, draw_points=draw_points,
             visualisation_mode=visualisation_mode, draw_means=draw_means
         )
     if D == 3:
         visualize_gmm_3d(
-            ax, data, means, covariances, priors, draw_points=draw_points, 
+            ax, data, means, covariances, priors, draw_points=draw_points,
             visualisation_mode=visualisation_mode, draw_means=draw_means
         )
 
 
+def visualize_graph_on_mfa(
+    ax,
+    means,
+    covariances,
+    priors,
+    edges=None,  # list of tuples [(i,j), ...]
+    draw_nodes=True,
+    visualisation_mode="line",
+    node_color="red",
+    edge_color="blue",
+    edge_alpha=0.6
+):
+    """
+    Visualize MFA components (means + covariances) and optionally a graph connecting them.
 
+    Parameters
+    ----------
+    ax : matplotlib axis
+    means : ndarray (N, D)
+    covariances : list of ndarray (N, D, D)
+    priors : ndarray (N,)
+    edges : list of tuples (i,j) optional
+        Each tuple is a connection between mean i and mean j
+    """
+    N, D = means.shape
+    # Draw MFA components
+    if D == 2:
+        for mean, cov, prior in zip(means, covariances, priors):
+            if visualisation_mode == "line":
+                plot_line(ax, mean, cov, prior)
+            elif visualisation_mode == "ellipsoid":
+                plot_ellipse(ax, mean, cov, prior)
+        if draw_nodes:
+            ax.scatter(means[:, 0], means[:, 1], s=20, c=node_color, zorder=3)
 
+        # Draw edges
+        if edges is not None:
+            for i, j in edges:
+                ax.plot(
+                    [means[i, 0], means[j, 0]],
+                    [means[i, 1], means[j, 1]],
+                    color=edge_color,
+                    alpha=edge_alpha,
+                    linewidth=2
+                )
+    elif D == 3:
+        for mean, cov, prior in zip(means, covariances, priors):
+            if visualisation_mode == "line":
+                plot_line_in_3d(ax, mean, cov)
+            elif visualisation_mode == "ellipsoid":
+                plot_ellipsoid(ax, mean, cov)
+        if draw_nodes:
+            ax.scatter(means[:, 0], means[:, 1], means[:, 2],
+                       s=20, c=node_color, zorder=3)
 
-
-
+        # Draw edges
+        if edges is not None:
+            for i, j in edges:
+                ax.plot(
+                    [means[i, 0], means[j, 0]],
+                    [means[i, 1], means[j, 1]],
+                    [means[i, 2], means[j, 2]],
+                    color=edge_color,
+                    alpha=edge_alpha,
+                    linewidth=2
+                )

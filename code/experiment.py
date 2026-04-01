@@ -20,13 +20,14 @@ class Experiment:
         shared=False,
         embed_dim=None,
         noise=0.005,
-        seed=123,
+        seed=None,
     ):
         # type of toy-data ("line", "circle", "swiss_roll")
         self.data_type = data_type
         self.N = N  # number of data points
         self.C = C  # number of gaussian components
-        self.H = H  # assumption that the data lives on H-dimensional manifold (needed for mfa)
+        # assumption that the data lives on H-dimensional manifold (needed for mfa)
+        self.H = H
         self.cov_type = cov_type  # ("isotropic", "diagonal", "mfa", "full")
         self.shared = shared  # use shared covariances?
         self.embed_dim = embed_dim
@@ -39,7 +40,6 @@ class Experiment:
         self.projection_matrix = None
         self.model = None  # model for training
         self.obj = None  # objective (how good is the training-result?)
-
 
     def generate_data(self):
         data = None
@@ -60,14 +60,15 @@ class Experiment:
             self.data = data
         else:
             self.data, self.projection_matrix = embed_data_to_dimension(
-                data, self.embed_dim, noise=self.noise
+                data, self.embed_dim, noise=self.noise, random_state=self.seed
             )
-
 
     def train(self):
         _, D = self.data.shape
 
-        self.model = Gaussian(C=self.C, D=D, covariance_type=self.cov_type, shared=self.shared, H=self.H)
+        self.model = Gaussian(
+            C=self.C, D=D, covariance_type=self.cov_type, shared=self.shared, H=self.H
+        )
 
-        obj, _ = self.model.fit(self.data, verbose=False)
+        obj, _ = self.model.fit(self.data, verbose=False, rng=self.seed)
         self.obj = obj

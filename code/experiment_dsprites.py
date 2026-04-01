@@ -14,7 +14,7 @@ MODEL_PATH = "../data/dsprites/mfa_model.npz"
 
 # hyper parameters
 C        = 1000
-H        = 5
+H        = 7
 COV_TYPE = "mfa"
 SHARED   = False
 SEED     = 42
@@ -151,7 +151,7 @@ def show_images(imgs, title="Generated dSprites samples"):
  
 def main():
     # 1. load saved model, or train + save a new one
-    if os.path.exists(MODEL_PATH):
+    if False: #os.path.exists(MODEL_PATH):
         model = load_model()
     else:
         X = load_data()
