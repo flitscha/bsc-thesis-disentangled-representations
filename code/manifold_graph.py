@@ -58,6 +58,8 @@ def compute_score_matrix(means, tangents):
             d_ij = means[j] - means[i]
             dist = np.linalg.norm(d_ij) + eps
 
+            # TODO: play with parameters (maybe conclude priors?)
+
             # Tangent alignment
             alignment = np.abs(np.dot(tangents[i], tangents[j]))
 

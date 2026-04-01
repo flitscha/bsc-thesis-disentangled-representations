@@ -91,7 +91,7 @@ def visualize_gmm_2d(
     # set limits
     x_min, y_min = data.min(axis=0)
     x_max, y_max = data.max(axis=0)
-    padding = 0.5
+    padding = 0.1
     ax.set_xlim(x_min - padding, x_max + padding)
     ax.set_ylim(y_min - padding, y_max + padding)
     ax.set_aspect("equal")
@@ -217,7 +217,7 @@ def visualize_gmm_3d(
     # set limits
     x_min, y_min, z_min = data.min(axis=0)
     x_max, y_max, z_max = data.max(axis=0)
-    padding = 0.5
+    padding = 0.1
     ax.set_xlim(x_min - padding, x_max + padding)
     ax.set_ylim(y_min - padding, y_max + padding)
     ax.set_zlim(z_min - padding, z_max + padding)
@@ -331,6 +331,23 @@ def visualize_graph_on_mfa(
         Each tuple is a connection between mean i and mean j
     """
     N, D = means.shape
+
+    # set limits based on means
+    mins = means.min(axis=0)
+    maxs = means.max(axis=0)
+    padding = 0.1
+
+    if D == 2:
+        ax.set_xlim(mins[0] - padding, maxs[0] + padding)
+        ax.set_ylim(mins[1] - padding, maxs[1] + padding)
+        ax.set_aspect("equal")
+
+    elif D == 3:
+        ax.set_xlim(mins[0] - padding, maxs[0] + padding)
+        ax.set_ylim(mins[1] - padding, maxs[1] + padding)
+        ax.set_zlim(mins[2] - padding, maxs[2] + padding)
+        ax.set_box_aspect([1, 1, 1])
+
     # Draw MFA components
     if D == 2:
         for mean, cov, prior in zip(means, covariances, priors):
