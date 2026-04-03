@@ -12,7 +12,10 @@ from manifold_graph import (
     build_knn_graph,
     adjacency_to_edges,
 )
-from visualization.visualize import visualize_gmm, visualize_graph_on_mfa
+from visualization.visualize import visualize_gmm, visualize_graph_on_mfa, visualize_traversal
+
+
+from graph_traversal import traverse_graph
 
 
 class Demo:
@@ -36,6 +39,8 @@ class Demo:
 
         self.experiment = None
         self.graph_edges = None
+
+        self.traversal_order = None
 
     def _init_settings(self, setting_frame, plot_frame):
         # data combo box
@@ -163,9 +168,16 @@ class Demo:
         # k nearest neighbors
         ttk.Label(master=setting_frame, text="k (neighbors):").grid(
             column=0, row=15, sticky=tk.W)
-        self.k_neighbors = tk.IntVar(value=3)
+        self.k_neighbors = tk.IntVar(value=2)
         ttk.Entry(master=setting_frame, width=10,
                   textvariable=self.k_neighbors).grid(column=1, row=15)
+
+        self.traverse_button = ttk.Button(
+            master=setting_frame,
+            text="Traverse Graph",
+            command=self._traverse_graph
+        )
+        self.traverse_button.grid(column=0, row=16, sticky=tk.W)
 
     def _init_plot(self, plot_frame, is_3d=False):
         # destroy existing plot
@@ -223,9 +235,28 @@ class Demo:
 
         print("Graph computed with k =", self.k_neighbors.get())
 
-        # direkt neu zeichnen
         self._update_plot(
             self.root.children[list(self.root.children.keys())[1]])
+
+    def _traverse_graph(self):
+        if self.experiment is None:
+            return
+
+        means = self.experiment.model.means
+        covariances = self.experiment.model.covariances
+
+        tangents = extract_tangent_directions(covariances)
+        score_matrix = compute_score_matrix(means, tangents)
+
+        adjacency = build_knn_graph(score_matrix, k=self.k_neighbors.get())
+
+        self.traversal_order = traverse_graph(adjacency)
+
+        print("Traversal length:", len(self.traversal_order))
+
+        self._update_plot(
+            self.root.children[list(self.root.children.keys())[1]]
+        )
 
     def _update_plot(self, plot_frame):
         # return, if there is no data to plot
@@ -271,6 +302,9 @@ class Demo:
                 visualisation_mode=self.visualisation_mode.get(),
                 draw_means=self.draw_means.get()
             )
+
+        if self.traversal_order is not None:
+            visualize_traversal(self.ax, means_proj, self.traversal_order)
 
     def main_loop(self):
         self.root.mainloop()

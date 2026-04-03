@@ -84,19 +84,19 @@ def build_knn_graph(score_matrix, k=2):
     - score_matrix : (N, N)
 
     Returns:
-    - adjacency : (N, N) binary matrix
+    - adjacency : (N, N) matrix that uses score-values for vertices, and 0 for non-vertices.
     """
     N = score_matrix.shape[0]
-    adjacency = np.zeros((N, N), dtype=int)
+    adjacency = np.zeros((N, N), dtype=float)
 
     for i in range(N):
-        neighbors = np.argsort(score_matrix[i])[:k]
+        neighbors = np.argsort(score_matrix[i])[1:k+1]
 
         for j in neighbors:
             if i == j:
                 continue
-            adjacency[i, j] = 1
-            adjacency[j, i] = 1  # undirected
+            adjacency[i, j] = score_matrix[i][j]
+            adjacency[j, i] = score_matrix[i][j]
 
     return adjacency
 
@@ -107,7 +107,7 @@ def adjacency_to_edges(adjacency):
 
     for i in range(N):
         for j in range(i + 1, N):  # wichtig: doppelte vermeiden!
-            if adjacency[i, j]:
+            if adjacency[i, j] != 0:
                 edges.append((i, j))
 
     return edges

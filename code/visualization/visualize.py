@@ -389,3 +389,60 @@ def visualize_graph_on_mfa(
                     alpha=edge_alpha,
                     linewidth=2
                 )
+
+
+def visualize_traversal(ax, means, order):
+    """
+    Visualize traversal order by drawing indices at each node
+    """
+    if order is None or len(order) == 0:
+        return
+
+    ordered_means = means[order]
+
+    D = means.shape[1]
+
+    if D == 2:
+        ax.scatter(ordered_means[:, 0], ordered_means[:, 1],
+                   c="black", s=30, zorder=5)
+
+        ax.plot(
+            ordered_means[:, 0],
+            ordered_means[:, 1],
+            color="gray",
+            linewidth=1.5,
+            alpha=0.7,
+            zorder=4
+        )
+
+        for idx, (x, y) in enumerate(ordered_means):
+            ax.text(
+                x+0.04, y,
+                str(idx),
+                fontsize=9,
+                color="blue",
+                zorder=6
+            )
+
+    elif D == 3:
+        ax.scatter(ordered_means[:, 0], ordered_means[:, 1], ordered_means[:, 2],
+                   c="black", s=30, zorder=5)
+
+        ax.plot(
+            ordered_means[:, 0],
+            ordered_means[:, 1],
+            ordered_means[:, 2],
+            color="gray",
+            linewidth=1.5,
+            alpha=0.7,
+            zorder=4
+        )
+
+        for idx, (x, y, z) in enumerate(ordered_means):
+            ax.text(
+                x+0.04, y, z,
+                str(idx),
+                fontsize=9,
+                color="blue",
+                zorder=6
+            )
