@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+import numpy as np
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -16,6 +17,7 @@ from visualization.visualize import visualize_gmm, visualize_graph_on_mfa, visua
 
 
 from graph_traversal import traverse_graph
+from manifold_interpolation import build_closed_spline
 
 
 class Demo:
@@ -41,6 +43,11 @@ class Demo:
         self.graph_edges = None
 
         self.traversal_order = None
+
+        self.spline = None
+        self.spline_line = None
+        self.spline_point = None
+        self.t = 0.0
 
     def _init_settings(self, setting_frame, plot_frame):
         # data combo box
@@ -179,6 +186,29 @@ class Demo:
         )
         self.traverse_button.grid(column=0, row=16, sticky=tk.W)
 
+        # -------------------------------------
+        # Spline Settings
+        ttk.Label(master=setting_frame,
+                  text="--- Spline ---").grid(column=0, row=17, sticky=tk.W)
+
+        self.calc_spline_button = ttk.Button(
+            master=setting_frame,
+            text="Calculate Spline",
+            command=self._calculate_splines
+        )
+        self.calc_spline_button.grid(column=0, row=18, sticky=tk.W)
+
+        ttk.Label(master=setting_frame, text="t (interpolation parameter)").grid(
+            column=0, row=19, sticky=tk.W)
+        self.t_slider = ttk.Scale(
+            master=setting_frame,
+            from_=0.0,
+            to=1.0,
+            orient=tk.HORIZONTAL,
+            command=lambda val: self._slider_change(float(val))
+        )
+        self.t_slider.grid(column=1, row=19, sticky=tk.EW)
+
     def _init_plot(self, plot_frame, is_3d=False):
         # destroy existing plot
         for widget in plot_frame.winfo_children():
@@ -258,6 +288,40 @@ class Demo:
             self.root.children[list(self.root.children.keys())[1]]
         )
 
+    def _calculate_splines(self):
+        points_ordered = self.experiment.model.means[self.traversal_order]
+        self.spline = build_closed_spline(points_ordered)
+
+        t_vals_full = np.linspace(0, 1, 200)
+        curve_full = self.spline(t_vals_full)
+
+        # init plot
+        self._init_plot(self.root.children[list(self.root.children.keys())[1]])
+
+        # Set axes limits so you actually see the spline
+        margin = 0.1 * (curve_full.max(axis=0) - curve_full.min(axis=0))
+        self.ax.set_xlim(curve_full[:, 0].min() -
+                         margin[0], curve_full[:, 0].max()+margin[0])
+        self.ax.set_ylim(curve_full[:, 1].min() -
+                         margin[1], curve_full[:, 1].max()+margin[1])
+
+        self.spline_line, = self.ax.plot([], [], c="blue", linewidth=2)
+        self.spline_point = self.ax.scatter([], [], s=80, c="red", zorder=5)
+
+        self._slider_change(0.0)
+
+    def _slider_change(self, value):
+        self.t = value
+        if self.spline is not None:
+            t_vals = np.linspace(0, self.t, 200)
+            curve = self.spline(t_vals)
+            self.spline_line.set_data(curve[:, 0], curve[:, 1])
+
+            p = self.spline(self.t)
+            self.spline_point.set_offsets([p[0], p[1]])
+
+            self.fig.canvas.draw_idle()
+
     def _update_plot(self, plot_frame):
         # return, if there is no data to plot
         if self.experiment is None:
@@ -305,6 +369,19 @@ class Demo:
 
         if self.traversal_order is not None:
             visualize_traversal(self.ax, means_proj, self.traversal_order)
+
+        # Draw spline curve
+        if self.spline is not None:
+            import numpy as np
+            t_vals = np.linspace(0, self.t, 200)
+            curve = self.spline(t_vals)
+            self.ax.plot(curve[:, 0], curve[:, 1], c="blue",
+                         linewidth=2, label="Spline")
+
+            # current point
+            p = self.spline(self.t)
+            self.ax.scatter(p[0], p[1], s=80, c="red",
+                            zorder=5, label="Current point")
 
     def main_loop(self):
         self.root.mainloop()
