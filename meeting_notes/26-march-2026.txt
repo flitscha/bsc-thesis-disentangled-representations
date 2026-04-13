@@ -52,3 +52,7 @@ Kann man mithilfe von geometrischen Eigenschaften an eine disentangled represent
 - Density Learning
 
 - normalizing flows (wahrscheinlich nicht relevant)
+
+
+Titelvorschlag:
+“Disentanglement via Manifold Geometry Learned from Mixture of Factor Analyzers”
