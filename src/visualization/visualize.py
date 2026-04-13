@@ -395,6 +395,24 @@ def visualize_traversal(ax, means, order):
     """
     Visualize traversal order by drawing indices at each node
     """
+    N, D = means.shape
+
+    # set limits based on means
+    mins = means.min(axis=0)
+    maxs = means.max(axis=0)
+    padding = 0.1
+
+    if D == 2:
+        ax.set_xlim(mins[0] - padding, maxs[0] + padding)
+        ax.set_ylim(mins[1] - padding, maxs[1] + padding)
+        ax.set_aspect("equal")
+
+    elif D == 3:
+        ax.set_xlim(mins[0] - padding, maxs[0] + padding)
+        ax.set_ylim(mins[1] - padding, maxs[1] + padding)
+        ax.set_zlim(mins[2] - padding, maxs[2] + padding)
+        ax.set_box_aspect([1, 1, 1])
+
     if order is None or len(order) == 0:
         return
 

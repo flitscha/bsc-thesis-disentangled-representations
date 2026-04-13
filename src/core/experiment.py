@@ -1,4 +1,4 @@
-from data_generation.basic_manifolds import (
+from data.basic_manifolds import (
     line_in_2d,
     circle,
     swiss_roll,

@@ -19,3 +19,4 @@ def build_closed_spline(points_ordered):
     t_vals = np.linspace(0, 1, N)
     spline = CubicSpline(t_vals, points_ordered, axis=0, bc_type='periodic')
     return spline
+
