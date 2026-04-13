@@ -1,4 +1,4 @@
-#from demo.demo import Demo
+from demo.demo import Demo
 from demo.demo_1d import Demo_1d
 
 

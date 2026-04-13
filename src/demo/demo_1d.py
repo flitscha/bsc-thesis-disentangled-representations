@@ -16,6 +16,14 @@ from visualization.visualize import (
 
 
 class Demo_1d:
+    """
+    This demo allows you to test and visualize the disentanglement of artificial 1D data.
+
+    An undirected graph is created from the result of multi-factor analysis (MFA).
+    This graph is then traversed.
+
+    Using the resulting sequence, these points can be interpolated with cubic splines.
+    """
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Learn Coordinates of 1d Manifold")
@@ -264,3 +272,4 @@ class Demo_1d:
 if __name__ == "__main__":
     demo = Demo_1d()
     demo.main_loop()
+
