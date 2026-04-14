@@ -121,3 +121,40 @@ def build_knn_graph(score_matrix: np.ndarray, k: int = 2) -> dict:
     }
 
 
+def graph_diagnostics(graph: dict) -> dict:
+    """
+    Returns a dict with:
+      n_components  : number of connected components (want: 1)
+      is_cycle_like : True if all degrees are 2 (perfect 1D topology)
+      degree_hist   : degree histogram as dict
+      isolated      : list of node indices with degree 0
+    """
+    adjacency = graph['adjacency']
+    degrees   = graph['degrees']
+    N         = adjacency.shape[0]
+ 
+    # BFS to count connected components
+    visited    = np.zeros(N, dtype=bool)
+    n_comp     = 0
+    for start in range(N):
+        if not visited[start]:
+            n_comp += 1
+            queue = [start]
+            while queue:
+                node = queue.pop()
+                if visited[node]:
+                    continue
+                visited[node] = True
+                neighbors = np.where(adjacency[node] > 0)[0]
+                queue.extend(neighbors.tolist())
+ 
+    unique, counts = np.unique(degrees, return_counts=True)
+    degree_hist = dict(zip(unique.tolist(), counts.tolist()))
+ 
+    return {
+        'n_components' : n_comp,
+        'is_cycle_like': bool(np.all(degrees == 2)),
+        'degree_hist'  : degree_hist,
+        'isolated'     : np.where(degrees == 0)[0].tolist(),
+    }
+

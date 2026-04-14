@@ -1,8 +1,13 @@
+import sys
+import os
+
 import tkinter as tk
 from tkinter import ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.experiment import Experiment
 from visualization.visualize import visualize_gmm

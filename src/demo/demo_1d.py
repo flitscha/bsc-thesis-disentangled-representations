@@ -1,9 +1,14 @@
+import sys
+import os
+
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.experiment import Experiment
 from core.pipeline import build_graph, build_spline_from_graph

@@ -13,3 +13,26 @@ Dabei wird aber nicht nur der euklidische Abstand berücksichtigt, sondern auch 
 
 Bemerkung: "falsch" gelernte komponenten werden automatisch bestraft.
 
+
+
+
+
+
+Höher-dimensionale Parametrisierung:
+
+Wir haben eine Datenwolke, wo die Daten teilweise gelabelt sind, mit den latent-faktoren.
+
+1. Man macht mfa.
+
+2. Man schaut sich die gelabelten Daten an, und fixiert eine latent-dimension.
+
+3. In dieser latent-dimension betrachtet man ähnliche Werte.
+
+4. Anhand der Ähnlichkeit (und der anderen Metriken) erstellt man sich graphen.
+
+5. Das macht man pro latent-faktor
+
+6. Mithilfe dieser Graphen kann man irgendwie eine globale parametrisierung finden.
+
+7. Bzw man lernt eine Darstellung der Mannigfaltigkeit als Produkt: M = M1 x ... x Mk
+
