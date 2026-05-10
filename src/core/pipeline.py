@@ -1,3 +1,5 @@
+import numpy as np
+
 from core.atlas import extract_tangent_frame
 from core.graph import compute_score_matrix, build_knn_graph
 from core.traversal import traverse_graph

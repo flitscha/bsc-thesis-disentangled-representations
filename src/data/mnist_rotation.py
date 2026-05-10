@@ -80,9 +80,11 @@ def make_rotation_dataset(
     angle_list = []
 
     for img in images:
+        padded = np.pad(img, 3, mode="constant", constant_values=0.0)
         for angle in angles:
-            rotated = scipy_rotate(img, angle, reshape=False,
-                                   mode="constant", cval=0.0, order=3)
+            rotated = scipy_rotate(padded, angle, reshape=False,
+                                   mode="constant", cval=0.0, order=1)
+            rotated = rotated[2:-2, 2:-2]
             frames.append(rotated.flatten().astype(float))
             angle_list.append(angle)
 
