@@ -27,7 +27,7 @@ RESIZE_THRESHOLD = 25
 ROTATE_SENSITIVITY = 0.4
 PLOT_THROTTLE_SEC = 0.05 # Throttling interval for mouse dragging (20 FPS)
 
-class MNISTDemoDPG:
+class MNISTDemoTab:
     def __init__(self):
         # State variables
         self.X = None
@@ -51,111 +51,95 @@ class MNISTDemoDPG:
         # Threading & Dynamic Texture Pipeline
         self.plot_queue = queue.Queue(maxsize=1)
         self.tex_w, self.tex_h = 800, 600
+
         self._texture_tag_base = "mnist_plot_texture"
         self._texture_counter = 0
         self.texture_tag = None
         self.texture_registry_tag = "mnist_texture_registry"
 
-        # Tags for UI control
-        self.image_tag = "plot_image"
-        self.plot_panel_tag = "CanvasContainer"
+        self.image_tag = "mnist_plot_image"
+        self.plot_panel_tag = "mnist_canvas_container"
+        self.handler_registry_tag = "mnist_handler_registry"
+        self.window_handler_tag = "mnist_window_handler"
 
-        # GUI Setup
-        dpg.create_context()
-        self._build_gui()
-
-        # Start asynchronous plot worker thread
+    def start_workers(self):
         threading.Thread(target=self._plot_worker, daemon=True).start()
+
+    def build_tab_ui(self):
+        dpg.add_texture_registry(tag=self.texture_registry_tag, show=False)
+
+        with dpg.group(horizontal=True):
+            self._build_settings_panel()
+            self._build_plot_panel()
+
+        with dpg.item_handler_registry(tag=self.window_handler_tag):
+            dpg.add_item_resize_handler(callback=self._on_window_resize)
+        dpg.bind_item_handler_registry(self.plot_panel_tag, self.window_handler_tag)
 
         self._register_mouse_handlers()
 
-    def _to_img(self, flat):
-        img = (flat + self.pixel_mean).reshape(30, 30)
-        return np.clip(img, 0.0, 1.0)
 
-    def _spline_to_pixel(self, t: float) -> np.ndarray:
-        if self.spline is None:
-            return np.zeros(784)
-        point = self.spline(t)
-        if self.exp is not None and self.exp.pca_components is not None:
-            point = self.exp.reconstruct(point)
-        return point
+    def _build_settings_panel(self):
+        with dpg.child_window(width=300, border=True):
+            _width = 150
 
+            # Data Section
+            dpg.add_text("Data", color=[0, 255, 255])
+            dpg.add_separator()
+            self.digit_in = dpg.add_input_int(
+                label="Digit (0-9)", default_value=3, min_value=0, max_value=9, width=_width
+            )
+            self.n_angles_in = dpg.add_input_int(label="Number of samples", default_value=360, width=_width)
+            dpg.add_button(label="Generate Data", callback=self._generate_data, width=-1)
+            self.data_lbl = dpg.add_text("-", color=[150, 150, 150])
 
-    # ---------------- GUI Construction -------------------------
-    def _build_gui(self):
-        dpg.add_texture_registry(tag=self.texture_registry_tag, show=False)
+            dpg.add_spacer(height=10)
 
-        with dpg.window(tag="PrimaryWindow"):
-            with dpg.group(horizontal=True):
+            # Model Section
+            dpg.add_text("Model", color=[0, 255, 255])
+            dpg.add_separator()
+            self.n_comp_in = dpg.add_input_int(label="# components", default_value=24, width=_width)
+            self.k_in = dpg.add_input_int(label="k (graph)", default_value=2, width=_width)
+            self.pca_dim_in = dpg.add_input_int(label="PCA dim (0=off)", default_value=0, width=_width)
+            dpg.add_button(label="Train + Build Spline", callback=self._train_threaded, width=-1)
+            self.train_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
 
-                # Left Panel: Controls
-                with dpg.child_window(width=300, border=True):
-                    _width = 150
+            dpg.add_spacer(height=10)
 
-                    # Data Section
-                    dpg.add_text("Data", color=[0, 255, 255])
-                    dpg.add_separator()
-                    self.digit_in = dpg.add_input_int(
-                        label="Digit (0-9)", default_value=3, min_value=0, max_value=9, width=_width
-                    )
-                    self.n_angles_in = dpg.add_input_int(label="Number of samples", default_value=360, width=_width)
-                    dpg.add_button(label="Generate Data", callback=self._generate_data, width=-1)
-                    self.data_lbl = dpg.add_text("-", color=[150, 150, 150])
+            # Render Mode Section
+            dpg.add_text("Render Mode", color=[0, 255, 255])
+            dpg.add_separator()
+            self.mode_var = dpg.add_radio_button(
+                ("samples", "pca", "spline"),
+                default_value="samples",
+                callback=self._on_mode_change
+            )
 
-                    dpg.add_spacer(height=10)
+            # Visualization (2D / 3D)
+            dpg.add_spacer(height=5)
+            dpg.add_text("Visualization dimension:")
+            self.dim_var = dpg.add_radio_button(
+                ("2D", "3D"),
+                default_value="2D",
+                horizontal=True,
+                callback=self._request_async_plot
+            )
 
-                    # Model Section
-                    dpg.add_text("Model", color=[0, 255, 255])
-                    dpg.add_separator()
-                    self.n_comp_in = dpg.add_input_int(label="# components", default_value=24, width=_width)
-                    self.k_in = dpg.add_input_int(label="k (graph)", default_value=2, width=_width)
-                    self.pca_dim_in = dpg.add_input_int(label="PCA dim (0=off)", default_value=0, width=_width)
-                    dpg.add_button(label="Train + Build Spline", callback=self._train_threaded, width=-1)
-                    self.train_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
+            dpg.add_spacer(height=10)
 
-                    dpg.add_spacer(height=10)
+            # Slider Section
+            dpg.add_text("Spline Parameter t", color=[0, 255, 255])
+            dpg.add_separator()
+            self.t_disp = dpg.add_text("t = 0.000  (0°)")
+            self.t_slider = dpg.add_slider_double(
+                default_value=0.0, min_value=0.0, max_value=1.0,
+                callback=self._on_slider, width=-1
+            )
 
-                    # Render Mode Section
-                    dpg.add_text("Render Mode", color=[0, 255, 255])
-                    dpg.add_separator()
-                    self.mode_var = dpg.add_radio_button(
-                        ("samples", "pca", "spline"),
-                        default_value="samples",
-                        callback=self._on_mode_change
-                    )
+    def _build_plot_panel(self):
+        with dpg.child_window(border=False, tag=self.plot_panel_tag):
 
-                    # Visualization (2D / 3D)
-                    dpg.add_spacer(height=5)
-                    dpg.add_text("Visualization dimension:")
-                    self.dim_var = dpg.add_radio_button(
-                        ("2D", "3D"),
-                        default_value="2D",
-                        horizontal=True,
-                        callback=self._request_async_plot
-                    )
-
-                    dpg.add_spacer(height=10)
-
-                    # Slider Section
-                    dpg.add_text("Spline Parameter t", color=[0, 255, 255])
-                    dpg.add_separator()
-                    self.t_disp = dpg.add_text("t = 0.000  (0°)")
-                    self.t_slider = dpg.add_slider_double(
-                        default_value=0.0, min_value=0.0, max_value=1.0,
-                        callback=self._on_slider, width=-1
-                    )
-
-                # Right Panel: Canvas Plot Area
-                with dpg.child_window(border=False, tag=self.plot_panel_tag):
-                    self._swap_texture(self.tex_w, self.tex_h)
-
-        dpg.set_primary_window("PrimaryWindow", True)
-
-        # Register window resize handler
-        with dpg.item_handler_registry(tag="window_handler"):
-            dpg.add_item_resize_handler(callback=self._on_window_resize)
-        dpg.bind_item_handler_registry(self.plot_panel_tag, "window_handler")
+            self._swap_texture(self.tex_w, self.tex_h)
 
 
     # ------------------ Interactions & Callbacks -----------------------
@@ -251,7 +235,7 @@ class MNISTDemoDPG:
         self._texture_counter += 1
 
         if data is None:
-            data = [1.0, 1.0, 1.0, 1.0] * (width * height)
+            data = [0.12, 0.12, 0.14, 1.0] * (width * height)
 
         dpg.add_dynamic_texture(
             width=width, height=height, default_value=data,
@@ -370,6 +354,14 @@ class MNISTDemoDPG:
         }
         self.plot_queue.put(state)
 
+    def _spline_to_pixel(self, t: float) -> np.ndarray:
+        if self.spline is None:
+            return np.zeros(784)
+        point = self.spline(t)
+        if self.exp is not None and self.exp.pca_components is not None:
+            point = self.exp.reconstruct(point)
+        return point
+
     def _plot_worker(self):
         while True:
             state = self.plot_queue.get()
@@ -390,11 +382,13 @@ class MNISTDemoDPG:
             canvas.draw()
             w, h = canvas.get_width_height()
             buf = np.asarray(canvas.buffer_rgba(), dtype=np.float32) / 255.0
+            flat_data = buf.flatten()
 
             if (w, h) != (self.tex_w, self.tex_h):
-                self._swap_texture(w, h, data=buf.flatten())
+                self._swap_texture(w, h, data=flat_data)
             else:
-                dpg.set_value(self.texture_tag, buf.flatten())
+                if self.texture_tag and dpg.does_item_exist(self.texture_tag):
+                    dpg.set_value(self.texture_tag, flat_data)
 
             fig.clf()
 
@@ -405,8 +399,4 @@ class MNISTDemoDPG:
         dpg.show_viewport()
         dpg.start_dearpygui()
         dpg.destroy_context()
-
-
-if __name__ == "__main__":
-    MNISTDemoDPG().run()
 

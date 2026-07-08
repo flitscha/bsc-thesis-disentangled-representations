@@ -33,7 +33,7 @@ ROTATE_SENSITIVITY = 0.4
 class SyntheticDemoTab:
     _instance_counter = 0
 
-    def __init__(self, parent):
+    def __init__(self):
         SyntheticDemoTab._instance_counter += 1
         uid = SyntheticDemoTab._instance_counter
         self._texture_tag_base = f"synthetic_plot_texture_{uid}"
@@ -55,10 +55,10 @@ class SyntheticDemoTab:
         self._last_mouse_pos = None
         self._last_render_time = 0.0
 
-        with dpg.tab(label="Synthetic Explorer", parent=parent):
-            with dpg.group(horizontal=True):
-                self._build_settings_panel()
-                self._build_plot_panel()
+    def build_tab_ui(self):
+        with dpg.group(horizontal=True):
+            self._build_settings_panel()
+            self._build_plot_panel()
 
         self._register_mouse_handlers()
 

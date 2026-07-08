@@ -37,7 +37,7 @@ RENDER_INTERVAL = 0.033  # 30fps throttle, shared by camera-drag and spline-slid
 class Manifold1DTab:
     _instance_counter = 0
 
-    def __init__(self, parent):
+    def __init__(self):
         Manifold1DTab._instance_counter += 1
         uid = Manifold1DTab._instance_counter
         self._texture_tag_base = f"manifold1d_plot_texture_{uid}"
@@ -66,10 +66,10 @@ class Manifold1DTab:
         self._is_rendering = False 
         self._render_requested = False
 
-        with dpg.tab(label="1D Manifold", parent=parent):
-            with dpg.group(horizontal=True):
-                self._build_settings_panel()
-                self._build_plot_panel()
+    def build_tab_ui(self):
+        with dpg.group(horizontal=True):
+            self._build_settings_panel()
+            self._build_plot_panel()
 
         self._register_mouse_handlers()
 
@@ -118,7 +118,7 @@ class Manifold1DTab:
             dpg.add_separator()
             self.status_text = dpg.add_text("No training has been conducted yet.")
 
-    # -------------------- Setup: Plot-Panel + Textur -----------------------
+    # -------------------- Setup: Plot-Panel + Texture -----------------------
     def _build_plot_panel(self):
         self.texture_tag = f"{self._texture_tag_base}_{self._texture_counter}"
         self._texture_counter += 1
@@ -336,24 +336,4 @@ class Manifold1DTab:
             return
 
         dpg.set_value(self.texture_tag, buf.flatten())
-
-
-# TODO: move starting point to main.py
-def main():
-    dpg.create_context()
-    dpg.create_viewport(title="MFA Demo", width=1150, height=820)
-
-    with dpg.window(label="MFA Demo", tag="primary_window"):
-        with dpg.tab_bar():
-            Manifold1DTab(parent=dpg.last_item())
-
-    dpg.setup_dearpygui()
-    dpg.show_viewport()
-    dpg.set_primary_window("primary_window", True)
-    dpg.start_dearpygui()
-    dpg.destroy_context()
-
-
-if __name__ == "__main__":
-    main()
 
