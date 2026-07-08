@@ -464,3 +464,53 @@ def visualize_traversal(ax, means, order):
                 color="blue",
                 zorder=6
             )
+
+
+def visualize_spline(ax, data, spline, t, draw_points=True):
+    """
+    Visualisiert den berechneten Spline-Pfad bis zum Zeitpunkt t in 2D oder 3D.
+    Sorgt für stabiles Achsenverhältnis (Aspect Ratio) ohne Springen oder Verzerren.
+    """
+    N, D = data.shape
+
+    # 1. Achsenbegrenzungen starr anhand der Gesamtdaten fixieren
+    mins = data.min(axis=0)
+    maxs = data.max(axis=0)
+    padding = 0.2
+
+    # 2. Datenpunkte im Hintergrund zeichnen
+    if draw_points:
+        if D == 2:
+            ax.scatter(data[:, 0], data[:, 1], c="grey", alpha=0.2, s=5, label="Data")
+        elif D == 3:
+            ax.scatter(data[:, 0], data[:, 1], data[:, 2], c="grey", alpha=0.15, s=4, label="Data")
+
+    # 3. Spline-Kurve berechnen (von 0 bis aktuellen Schieberegler-Wert t)
+    if spline is not None and t > 0:
+        t_vals = np.linspace(0, t, 200)
+        curve = spline(t_vals)
+        current_p = spline(t)
+
+        if D == 2:
+            # Kurve zeichnen
+            ax.plot(curve[:, 0], curve[:, 1], c="blue", linewidth=2.5, zorder=10)
+            # Aktuellen Punkt (Kopf der Kurve) markieren
+            ax.scatter([current_p[0]], [current_p[1]], s=70, c="red", zorder=11)
+        elif D == 3:
+            # Kurve im 3D-Raum zeichnen
+            ax.plot(curve[:, 0], curve[:, 1], curve[:, 2], c="blue", linewidth=2.5, zorder=10)
+            # Aktuellen 3D-Punkt markieren
+            ax.scatter([current_p[0]], [current_p[1]], [current_p[2]], s=70, c="red", zorder=11)
+
+    # 4. Aspect Ratio & Limits setzen (Wichtig gegen die Verzerrung!)
+    if D == 2:
+        ax.set_xlim(mins[0] - padding, maxs[0] + padding)
+        ax.set_ylim(mins[1] - padding, maxs[1] + padding)
+        ax.set_aspect("equal", adjustable="box")
+    elif D == 3:
+        ax.set_xlim(mins[0] - padding, maxs[0] + padding)
+        ax.set_ylim(mins[1] - padding, maxs[1] + padding)
+        ax.set_zlim(mins[2] - padding, maxs[2] + padding)
+        # Matplotlib 3D erzwingt ein quadratisches Koordinatensystem-Gehäuse hiermit:
+        ax.set_box_aspect([1, 1, 1])
+
