@@ -17,7 +17,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.experiment import Experiment
-from visualization.visualize import visualize_gmm
+from visualization.gmm import visualize_gmm
 
 
 DPI = 100

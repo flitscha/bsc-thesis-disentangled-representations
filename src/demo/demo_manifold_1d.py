@@ -20,7 +20,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from core.experiment import Experiment
 from core.pipeline import build_graph, build_spline_from_graph
 from core.traversal import traverse_graph
-from visualization.visualize import visualize_gmm, visualize_traversal, visualize_spline
+from visualization.gmm import visualize_gmm
+from visualization.graph import visualize_traversal
+from visualization.spline import visualize_spline
 
 
 DPI = 100
