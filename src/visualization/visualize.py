@@ -466,51 +466,244 @@ def visualize_traversal(ax, means, order):
             )
 
 
-def visualize_spline(ax, data, spline, t, draw_points=True):
-    """
-    Visualisiert den berechneten Spline-Pfad bis zum Zeitpunkt t in 2D oder 3D.
-    Sorgt für stabiles Achsenverhältnis (Aspect Ratio) ohne Springen oder Verzerren.
-    """
-    N, D = data.shape
+def visualize_spline(
+    ax,
+    data,
+    spline,
+    t,
+    draw_points=True,
+    colors=None,
+    cmap="hsv",
+    colorbar=False,
+):
+    """Visualisiert den berechneten Spline-Pfad bis zum Zeitpunkt t in 2D oder 3D.
 
-    # 1. Achsenbegrenzungen starr anhand der Gesamtdaten fixieren
-    mins = data.min(axis=0)
-    maxs = data.max(axis=0)
-    padding = 0.2
+    Sorgt für ein stabiles Achsenverhältnis (Aspect Ratio) ohne Springen oder
+    Verzerren.
+    """
+    # Bestimme die Zieldimension (2D oder 3D) anhand des Matplotlib-Achsenobjekts
+    is_3d = hasattr(ax, "get_zlim")
+    D = 3 if is_3d else 2
 
-    # 2. Datenpunkte im Hintergrund zeichnen
+    # Achsenbegrenzungen starr anhand der benötigten Dimensionen fixieren
+    # Wenn data 3D ist, wir aber 2D plotten, ignorieren wir die 3. Spalte
+    plot_data = data[:, :D]
+    mins = plot_data.min(axis=0)
+    maxs = plot_data.max(axis=0)
+
+    # Padding relativ zur Skalierung berechnen, um Verzerrungen zu vermeiden
+    ranges = maxs - mins
+    padding = 0.1 * (ranges if np.all(ranges > 0) else 1.0)
+
+    # 1. Datenpunkte im Hintergrund zeichnen
     if draw_points:
-        if D == 2:
-            ax.scatter(data[:, 0], data[:, 1], c="grey", alpha=0.2, s=5, label="Data")
-        elif D == 3:
-            ax.scatter(data[:, 0], data[:, 1], data[:, 2], c="grey", alpha=0.15, s=4, label="Data")
+        if colors is None:
+            if not is_3d:
+                ax.scatter(
+                    plot_data[:, 0],
+                    plot_data[:, 1],
+                    c="grey",
+                    alpha=0.2,
+                    s=5,
+                )
+            else:
+                ax.scatter(
+                    plot_data[:, 0],
+                    plot_data[:, 1],
+                    plot_data[:, 2],
+                    c="grey",
+                    alpha=0.15,
+                    s=4,
+                )
+        else:
+            if not is_3d:
+                scatter = ax.scatter(
+                    plot_data[:, 0],
+                    plot_data[:, 1],
+                    c=colors,
+                    cmap=cmap,
+                    s=15,
+                    alpha=0.5,
+                    vmin=0,
+                    vmax=360,
+                )
+            else:
+                scatter = ax.scatter(
+                    plot_data[:, 0],
+                    plot_data[:, 1],
+                    plot_data[:, 2],
+                    c=colors,
+                    cmap=cmap,
+                    s=15,
+                    alpha=0.5,
+                    vmin=0,
+                    vmax=360,
+                )
 
-    # 3. Spline-Kurve berechnen (von 0 bis aktuellen Schieberegler-Wert t)
+            if colorbar:
+                # Verhindert, dass mehrfach Colorbars an dasselbe Ax-Objekt gehängt werden
+                if not hasattr(ax, "_has_colorbar"):
+                    cbar = ax.figure.colorbar(
+                        scatter,
+                        ax=ax,
+                        pad=0.04,
+                        shrink=0.75,
+                    )
+                    cbar.set_label("Rotation angle")
+                    cbar.set_ticks([0, 45, 90, 135, 180, 225, 270, 315, 360])
+                    ax._has_colorbar = True
+
+    # 2. Spline-Kurve berechnen (von 0 bis aktuellen Schieberegler-Wert t)
     if spline is not None and t > 0:
         t_vals = np.linspace(0, t, 200)
-        curve = spline(t_vals)
+
+        # Sicheres Auswerten der Kurvenpunkte
+        curve = spline(t_vals)[:, :D]
         current_p = spline(t)
+        # Falls spline(t) ein 1D-Array zurückgibt, stelle 1D sicher
+        if current_p.ndim > 1:
+            current_p = current_p[0]
+        current_p = current_p[:D]
 
-        if D == 2:
+        if not is_3d:
             # Kurve zeichnen
-            ax.plot(curve[:, 0], curve[:, 1], c="blue", linewidth=2.5, zorder=10)
+            ax.plot(
+                curve[:, 0], curve[:, 1], c="blue", linewidth=2.5, zorder=10
+            )
             # Aktuellen Punkt (Kopf der Kurve) markieren
-            ax.scatter([current_p[0]], [current_p[1]], s=70, c="red", zorder=11)
-        elif D == 3:
+            ax.scatter(
+                [current_p[0]],
+                [current_p[1]],
+                s=180,
+                c="crimson",
+                marker="*",
+                edgecolors="black",
+                zorder=20,
+            )
+        else:
             # Kurve im 3D-Raum zeichnen
-            ax.plot(curve[:, 0], curve[:, 1], curve[:, 2], c="blue", linewidth=2.5, zorder=10)
+            ax.plot(
+                curve[:, 0],
+                curve[:, 1],
+                curve[:, 2],
+                c="blue",
+                linewidth=2.5,
+                zorder=10,
+            )
             # Aktuellen 3D-Punkt markieren
-            ax.scatter([current_p[0]], [current_p[1]], [current_p[2]], s=70, c="red", zorder=11)
+            ax.scatter(
+                [current_p[0]],
+                [current_p[1]],
+                [current_p[2]],
+                s=180,
+                c="crimson",
+                marker="*",
+                edgecolors="black",
+                zorder=20,
+            )
 
-    # 4. Aspect Ratio & Limits setzen (Wichtig gegen die Verzerrung!)
-    if D == 2:
-        ax.set_xlim(mins[0] - padding, maxs[0] + padding)
-        ax.set_ylim(mins[1] - padding, maxs[1] + padding)
+    # 3. Aspect Ratio & Limits setzen
+    if not is_3d:
+        ax.set_xlim(mins[0] - padding[0], maxs[0] + padding[0])
+        ax.set_ylim(mins[1] - padding[1], maxs[1] + padding[1])
         ax.set_aspect("equal", adjustable="box")
-    elif D == 3:
-        ax.set_xlim(mins[0] - padding, maxs[0] + padding)
-        ax.set_ylim(mins[1] - padding, maxs[1] + padding)
-        ax.set_zlim(mins[2] - padding, maxs[2] + padding)
-        # Matplotlib 3D erzwingt ein quadratisches Koordinatensystem-Gehäuse hiermit:
+    else:
+        ax.set_xlim(mins[0] - padding[0], maxs[0] + padding[0])
+        ax.set_ylim(mins[1] - padding[1], maxs[1] + padding[1])
+        ax.set_zlim(mins[2] - padding[2], maxs[2] + padding[2])
         ax.set_box_aspect([1, 1, 1])
+
+
+
+
+# -------------- Visualisation for MNIST demo ----------------------------
+def render_samples_frame(fig, X, angles, digit):
+    n_show = 20
+    idx = np.linspace(0, len(X) - 1, n_show, dtype=int)
+    cols, rows = 10, 2
+    axes = fig.subplots(rows, cols)
+
+    # Pixel-Mittelwert fuer Rekonstruktion (falls zentriert, hier direkt berechnet)
+    pixel_mean = X.mean(axis=0) if X is not None else 0
+
+    for k, i in enumerate(idx):
+        r, c = divmod(k, cols)
+        ax = axes[r, c]
+        img = (X[i] + pixel_mean).reshape(30, 30)
+        ax.imshow(np.clip(img, 0.0, 1.0), cmap="gray", vmin=0, vmax=1, interpolation="nearest")
+        ax.set_title(f"{angles[i]:.0f}°", fontsize=8)
+        ax.axis("off")
+
+    fig.suptitle(f"Samples - digit {digit}", fontsize=12)
+    fig.tight_layout()
+
+
+def draw_pca_background_layer(fig, ax, state, pca_data, angles, exp, pca_basis, spline_to_pixel_fn):
+    is_3d = state["is_3d"]
+
+    def spline_projected(tt):
+        tt_arr = np.atleast_1d(tt)
+        pts = np.stack([spline_to_pixel_fn(v) for v in tt_arr])
+        proj = pts @ pca_basis
+        return proj if np.ndim(tt) > 0 else proj[0]
+
+    visualize_spline(
+        ax=ax,
+        data=pca_data,
+        spline=spline_projected,
+        t=state["t"] if state["mode"] == "spline" else 0,
+        draw_points=True,
+        colors=angles,
+        colorbar=True,
+    )
+
+    if exp is not None:
+        means_px = exp.reconstruct(exp.model.means)
+        means_proj = means_px @ pca_basis
+        cluster_color = "gold" 
+
+        if is_3d:
+            ax.scatter(means_proj[:, 0], means_proj[:, 1], means_proj[:, 2],
+                       c=cluster_color, s=70, zorder=15, edgecolors="black")
+        else:
+            ax.scatter(means_proj[:, 0], means_proj[:, 1],
+                       c=cluster_color, s=70, zorder=15, edgecolors="black")
+
+    ax.set_title("3D PCA Projection" if is_3d else "2D PCA Projection", fontsize=12)
+
+
+def render_pca_frame(fig, state, pca_data, angles, exp, pca_basis, spline_to_pixel_fn):
+    if state["is_3d"]:
+        ax = fig.add_subplot(111, projection='3d')
+        ax.view_init(elev=state["elev"], azim=state["azim"])
+    else:
+        ax = fig.add_subplot(111)
+
+    draw_pca_background_layer(fig, ax, state, pca_data, angles, exp, pca_basis, spline_to_pixel_fn)
+    fig.tight_layout()
+
+
+def render_spline_frame(fig, state, X, pca_data, angles, exp, pca_basis, spline, spline_to_pixel_fn):
+    if spline is None:
+        render_pca_frame(fig, state, pca_data, angles, exp, pca_basis, spline_to_pixel_fn)
+        return
+
+    t = state["t"]
+    point = spline_to_pixel_fn(t)
+    pixel_mean = X.mean(axis=0) if X is not None else 0
+    img = np.clip((point + pixel_mean).reshape(30, 30), 0.0, 1.0)
+
+    ax_img = fig.add_subplot(1, 2, 1)
+    if state["is_3d"]:
+        ax_pca = fig.add_subplot(1, 2, 2, projection='3d')
+        ax_pca.view_init(elev=state["elev"], azim=state["azim"])
+    else:
+        ax_pca = fig.add_subplot(1, 2, 2)
+
+    ax_img.imshow(img, cmap="gray", vmin=0, vmax=1, interpolation="nearest")
+    ax_img.axis("off")
+    ax_img.set_title(f"Spline reconstruction\nt = {t:.3f}  (~{t*360:.0f}°)", fontsize=10)
+
+    draw_pca_background_layer(fig, ax_pca, state, pca_data, angles, exp, pca_basis, spline_to_pixel_fn)
+    fig.tight_layout()
 
