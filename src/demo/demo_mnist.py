@@ -100,11 +100,7 @@ class MNISTDemoTab:
             dpg.add_separator()
             self.n_comp_in = dpg.add_input_int(label="# components", default_value=24, width=_width)
             self.k_in = dpg.add_input_int(label="k (graph)", default_value=2, width=_width)
-            self.pca_dim_in = dpg.add_input_int(label="PCA dim (0=off)", default_value=15, width=_width)
-            # TODO: fix pca
-            # currently, high pca values are very bad.
-            # Possible reason: PCA sorts the axes according to variance.
-            # This could affect MFA's noise matrix, because that matrix is diagonal.
+            self.pca_dim_in = dpg.add_input_int(label="PCA dim (0=off)", default_value=20, width=_width)
             dpg.add_button(label="Train + Build Spline", callback=self._train_threaded, width=-1)
             self.train_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
 

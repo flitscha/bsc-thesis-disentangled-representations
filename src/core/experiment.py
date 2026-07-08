@@ -38,13 +38,11 @@ class Experiment:
         self.noise = 0.005
         self.seed = seed
 
-
         # --- PCA pre-projection -------------------------------------------
-        # If pca_dim is set (int > 0), data is projected to that many PCA
-        # dimensions before training and back-projected for reconstruction.
         self.pca_dim = pca_dim if (pca_dim is not None and pca_dim > 0) else None
         self.pca_components = None # (D_original, pca_dim) set after _apply_pca
         self.pca_mean = None # (D_original,) for zero-mean PCA
+        self.pca_rotation = None # (pca_dim, pca_dim) hält die zufällige Rotation
 
         self.data = None
         self.projection_matrix = None
@@ -73,53 +71,57 @@ class Experiment:
                 data, self.embed_dim, noise=self.noise, random_state=self.seed
             )
 
+    # ------------------------------------------------------------------
+    # PCA helpers 
+    # ------------------------------------------------------------------
 
-    # ------------------------------------------------------------------
-    # PCA helpers  (called automatically by train() when pca_dim is set)
-    # ------------------------------------------------------------------
- 
     def _apply_pca(self):
         """
-        Project self.data from D dimensions down to pca_dim dimensions.
- 
-        Sets
-        ----
-        self.pca_mean        : (D,)           column mean of the original data
-        self.pca_components  : (D, pca_dim)   top-k right singular vectors
-        self.data            : (N, pca_dim)   projected data used for training
+        Project self.data down to pca_dim and apply a random orthogonal matrix.
+        
+        Why rotate? Standard PCA strictly sorts axes by variance, which hurts MFA
+        when it fits a diagonal noise matrix. Rotating preserves the optimal subspace
+        but scatters variance evenly across coordinates, removing the axis-sorting bias.
         """
+        # TODO: document and plot the issue, when not using the random orthogonal matrix.
+
         X = self.data
-        self.pca_mean = X.mean(axis=0)          # (D,)
+        self.pca_mean = X.mean(axis=0) # (D,)
         X_centered = X - self.pca_mean
- 
-        # economy SVD — only compute the first pca_dim components
+
+        # Standard PCA via SVD
         _, _, Vt = np.linalg.svd(X_centered, full_matrices=False)
-        self.pca_components = Vt[:self.pca_dim].T   # (D, pca_dim)
- 
-        self.data = X_centered @ self.pca_components  # (N, pca_dim)
-        print(f"[pca] projected {X.shape} -> {self.data.shape}")
- 
+
+        # Prevent slicing errors if fewer samples/singular vectors exist than pca_dim
+        actual_pca_dim = min(self.pca_dim, Vt.shape[0])
+        base_components = Vt[:actual_pca_dim].T # (D, actual_pca_dim)
+
+        # Generate a uniform random orthogonal matrix using QR decomposition
+        rng = np.random.default_rng(self.seed)
+        H_mat = rng.standard_normal((actual_pca_dim, actual_pca_dim))
+        Q, R = np.linalg.qr(H_mat)
+
+        # Sign correction to ensure a true uniform random rotation
+        d = np.diag(R)
+        ph = d / np.abs(d)
+        self.pca_rotation = Q * ph # (actual_pca_dim, actual_pca_dim)
+
+        # Combine PCA projection and rotation into a single transformation matrix
+        self.pca_components = base_components @ self.pca_rotation
+
+        self.data = X_centered @ self.pca_components # (N, actual_pca_dim)
+        print(f"[pca + rot] projected {X.shape} -> {self.data.shape}")
+
     def reconstruct(self, points: np.ndarray) -> np.ndarray:
         """
-        Back-project points from PCA space to the original data space.
- 
-        Parameters
-        ----------
-        points : (..., pca_dim)  — e.g. a single vector or a batch
- 
-        Returns
-        -------
-        (..., D_original)
- 
-        If no PCA was applied, returns points unchanged.
+        Back-project points from rotated PCA space to the original data space.
         """
         if self.pca_components is None:
             return points
-        # points @ P^T  maps (pca_dim,) -> (D,), then add back the mean
         return points @ self.pca_components.T + self.pca_mean
 
-    def train(self):
 
+    def train(self):
         if self.pca_dim is not None:
             self._apply_pca()
 
@@ -131,3 +133,4 @@ class Experiment:
 
         obj, _ = self.model.fit(self.data, verbose=False, rng=self.seed)
         self.obj = obj
+

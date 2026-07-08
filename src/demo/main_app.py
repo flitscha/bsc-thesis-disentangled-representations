@@ -1,6 +1,6 @@
 import dearpygui.dearpygui as dpg
 
-from demo.demo_mnistDPG import MNISTDemoTab
+from demo.demo_mnist import MNISTDemoTab
 from demo.demo_manifold_1d import Manifold1DTab
 from demo.demo_synthetic import SyntheticDemoTab
 
