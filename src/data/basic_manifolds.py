@@ -60,6 +60,71 @@ def torus(n=1000, R=15.0, r=5.0, random_state=None):
 
 
 
+# ------------ Other Shapes, to test Topological Data Analysis ------------
+def half_circle(n=500, random_state=None):
+    theta = np.linspace(0, np.pi, n)
+    x = np.cos(theta)
+    y = np.sin(theta)
+    data = np.stack([x, y], axis=1)
+    return data
+
+
+def two_circles(n=500, radius=1.0, separation=3.0, return_labels=False, random_state=None):
+    n1 = n // 2
+    n2 = n - n1
+    theta1 = np.linspace(0, 2 * np.pi, n1, endpoint=False)
+    theta2 = np.linspace(0, 2 * np.pi, n2, endpoint=False)
+
+    c1 = np.stack([radius * np.cos(theta1) - separation / 2, radius * np.sin(theta1)], axis=1)
+    c2 = np.stack([radius * np.cos(theta2) + separation / 2, radius * np.sin(theta2)], axis=1)
+
+    data = np.concatenate([c1, c2], axis=0)
+    if return_labels:
+        labels = np.concatenate([np.zeros(n1, dtype=int), np.ones(n2, dtype=int)])
+        return data, labels
+    return data
+
+
+def circle_and_half_circle(n=500, radius=1.0, separation=3.0, return_labels=False, random_state=None):
+    n1 = n // 2
+    n2 = n - n1
+    theta_full = np.linspace(0, 2 * np.pi, n1, endpoint=False)
+    theta_half = np.linspace(0, np.pi, n2)
+
+    full = np.stack([radius * np.cos(theta_full) - separation / 2, radius * np.sin(theta_full)], axis=1)
+    half = np.stack([radius * np.cos(theta_half) + separation / 2, radius * np.sin(theta_half)], axis=1)
+
+    data = np.concatenate([full, half], axis=0)
+    if return_labels:
+        labels = np.concatenate([np.zeros(n1, dtype=int), np.ones(n2, dtype=int)])
+        return data, labels
+    return data
+
+
+def linked_circles_3d(n=1000, radius=1.0, offset=None, return_labels=False, random_state=None):
+    """
+    Two intertwined circles (Hopf link).
+    C1 lies in the xy-plane, C2 in the xz-plane, shifted by `offset` -
+    causing the two circular areas to intersect.
+    """
+    if offset is None:
+        offset = radius
+
+    n1 = n // 2
+    n2 = n - n1
+    theta1 = np.linspace(0, 2 * np.pi, n1, endpoint=False)
+    theta2 = np.linspace(0, 2 * np.pi, n2, endpoint=False)
+
+    c1 = np.stack([radius * np.cos(theta1), radius * np.sin(theta1), np.zeros(n1)], axis=1)
+    c2 = np.stack([offset + radius * np.cos(theta2), np.zeros(n2), radius * np.sin(theta2)], axis=1)
+
+    data = np.concatenate([c1, c2], axis=0)
+    if return_labels:
+        labels = np.concatenate([np.zeros(n1, dtype=int), np.ones(n2, dtype=int)])
+        return data, labels
+    return data
+
+
 # -------------------- Embedding ---------------------------
 def embed_data_to_dimension(
     data, new_dimension, noise=0.005, random_rotation=True, random_state=None
