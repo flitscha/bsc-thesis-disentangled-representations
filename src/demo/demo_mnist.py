@@ -62,6 +62,9 @@ class MNISTDemoTab:
         self.handler_registry_tag = "mnist_handler_registry"
         self.window_handler_tag = "mnist_window_handler"
 
+        self.export_dialog_tag = "mnist_export_dialog"
+        self.export_status_lbl = None
+
     def start_workers(self):
         threading.Thread(target=self._plot_worker, daemon=True).start()
 
@@ -137,9 +140,28 @@ class MNISTDemoTab:
             )
 
     def _build_plot_panel(self):
-        with dpg.child_window(border=False, tag=self.plot_panel_tag):
+        with dpg.group():
+            with dpg.child_window(border=False, tag=self.plot_panel_tag, height=-40):
+                self._swap_texture(self.tex_w, self.tex_h)
 
-            self._swap_texture(self.tex_w, self.tex_h)
+            dpg.add_button(
+                label="Export current plot as PNG",
+                callback=lambda: dpg.show_item(self.export_dialog_tag),
+                width=-1,
+            )
+            self.export_status_lbl = dpg.add_text("", color=[150, 150, 150])
+
+            with dpg.file_dialog(
+                directory_selector=False,
+                show=False,
+                callback=self._on_export_path_chosen,
+                tag=self.export_dialog_tag,
+                width=600,
+                height=400,
+                default_filename="pca_plot.png",
+            ):
+                dpg.add_file_extension(".png")
+                dpg.add_file_extension(".*")
 
 
     # ------------------ Interactions & Callbacks -----------------------
@@ -268,6 +290,49 @@ class MNISTDemoTab:
         self._swap_texture(new_w, new_h)
         self._request_async_plot()
 
+    def _on_export_path_chosen(self, sender, app_data):
+        path = app_data["file_path_name"]
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        dpg.set_value(self.export_status_lbl, "Exporting...")
+        dpg.configure_item(self.export_status_lbl, color=[255, 165, 0])
+        threading.Thread(target=self._export_plot, args=(path,), daemon=True).start()
+
+    def _export_plot(self, path):
+        if self.X is None:
+            dpg.set_value(self.export_status_lbl, "Nothing to export - generate data first.")
+            dpg.configure_item(self.export_status_lbl, color=[255, 0, 0])
+            return
+
+        state = {
+            "mode": dpg.get_value(self.mode_var),
+            "is_3d": dpg.get_value(self.dim_var) == "3D",
+            "t": dpg.get_value(self.t_slider),
+            "width": self.tex_w,
+            "height": self.tex_h,
+            "digit": dpg.get_value(self.digit_in),
+            "elev": self.elev,
+            "azim": self.azim,
+        }
+
+        export_dpi = 200
+        fig = Figure(figsize=(10, 7.5), dpi=export_dpi)
+        canvas = FigureCanvasAgg(fig)
+
+        mode = state["mode"]
+        if mode == "samples":
+            render_samples_frame(fig, self.X, self.angles, state["digit"])
+        elif mode == "pca":
+            render_pca_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self._spline_to_pixel)
+        elif mode == "spline":
+            render_spline_frame(fig, state, self.X, self.pca_data, self.angles, self.exp, self.pca_basis, self.spline, self._spline_to_pixel)
+
+        canvas.draw()
+        fig.savefig(path, dpi=export_dpi, bbox_inches="tight")
+        fig.clf()
+
+        dpg.set_value(self.export_status_lbl, f"Saved: {path}")
+        dpg.configure_item(self.export_status_lbl, color=[0, 255, 0])
 
     # ---------------- Pipeline & Training ----------------------
     def _generate_data(self):

@@ -7,17 +7,15 @@ from visualization.geometry import set_axis_limits
 
 def _draw_data_points(ax, plot_data, is_3d, colors, cmap, colorbar):
     coords = [plot_data[:, i] for i in range(3 if is_3d else 2)]
-
     if colors is None:
         kwargs = dict(c="grey", alpha=(0.15 if is_3d else 0.2), s=(4 if is_3d else 5))
         ax.scatter(*coords, **kwargs)
         return
-
     scatter = ax.scatter(*coords, c=colors, cmap=cmap, s=15, alpha=0.5, vmin=0, vmax=360)
-
     if colorbar and not hasattr(ax, "_has_colorbar"):
         cbar = ax.figure.colorbar(scatter, ax=ax, pad=0.04, shrink=0.75)
-        cbar.set_label("Rotation angle")
+        cbar.set_label("Rotation angle", fontsize=15)
+        cbar.ax.tick_params(labelsize=12)
         cbar.set_ticks([0, 45, 90, 135, 180, 225, 270, 315, 360])
         ax._has_colorbar = True
 

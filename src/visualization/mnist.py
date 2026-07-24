@@ -51,7 +51,6 @@ def draw_pca_background_layer(fig, ax, state, pca_data, angles, exp, pca_basis, 
         means_px = exp.reconstruct(exp.model.means)
         means_proj = means_px @ pca_basis
         cluster_color = "gold"
-
         if is_3d:
             ax.scatter(means_proj[:, 0], means_proj[:, 1], means_proj[:, 2],
                        c=cluster_color, s=70, zorder=15, edgecolors="black")
@@ -59,7 +58,8 @@ def draw_pca_background_layer(fig, ax, state, pca_data, angles, exp, pca_basis, 
             ax.scatter(means_proj[:, 0], means_proj[:, 1],
                        c=cluster_color, s=70, zorder=15, edgecolors="black")
 
-    ax.set_title("3D PCA Projection" if is_3d else "2D PCA Projection", fontsize=12)
+    ax.set_title("3D PCA Projection" if is_3d else "2D PCA Projection", fontsize=18)  # war 12
+    ax.tick_params(labelsize=13)  # Achsen-Zahlen vergrößern
 
 
 def render_pca_frame(fig, state, pca_data, angles, exp, pca_basis, spline_to_pixel_fn):
