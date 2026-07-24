@@ -3,6 +3,7 @@ import dearpygui.dearpygui as dpg
 from demo.demo_mnist import MNISTDemoTab
 from demo.demo_manifold_1d import Manifold1DTab
 from demo.demo_synthetic import SyntheticDemoTab
+from demo.demo_tda import TopologyDemoTab
 
 class MainApplication:
     def __init__(self):
@@ -11,6 +12,7 @@ class MainApplication:
         self.synthetic_tab = SyntheticDemoTab()
         self.manifold_1d_tab = Manifold1DTab()
         self.mnist_tab = MNISTDemoTab()
+        self.topology_tab = TopologyDemoTab()
 
     def build_ui(self):
         with dpg.window(tag="PrimaryWindow"):
@@ -25,6 +27,8 @@ class MainApplication:
                     self.manifold_1d_tab.build_tab_ui()
                 with dpg.tab(label="MNIST Rotation"):
                     self.mnist_tab.build_tab_ui()
+                with dpg.tab(label="Topology (TDA)"):
+                    self.topology_tab.build_tab_ui()
 
         self.mnist_tab.start_workers()
         dpg.set_primary_window("PrimaryWindow", True)

@@ -20,3 +20,15 @@ def build_closed_spline(points_ordered):
     spline = CubicSpline(t_vals, points_ordered, axis=0, bc_type='periodic')
     return spline
 
+
+def build_open_spline(points_ordered):
+    """
+    Inputs:
+    - points_ordered : (N,D) ndarray, an open path (not a closed loop)
+    Returns:
+    - spline : CubicSpline object, parametrized from 0 to 1, natural boundary conditions
+    """
+    N = len(points_ordered)
+    t_vals = np.linspace(0, 1, N)
+    spline = CubicSpline(t_vals, points_ordered, axis=0, bc_type='natural')
+    return spline
