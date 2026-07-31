@@ -1,11 +1,47 @@
 """
-Extracts local geometric structure from MFA covariance matrices.
+Pipeline step 2 (thesis §3.3): fit a Mixture of Factor Analyzers (MFA) and
+interpret it as a local geometry learner.
 
-A "chart" in the atlas sense: each Gaussian component defines a local
-linear approximation (tangent frame) to the data manifold at that point.
+The MFA is fitted as a density model, but its factor loading matrices W_k are
+reinterpreted geometrically: span(W_k) approximates the local tangent space of
+the data manifold at component k. `extract_tangent_frame` turns each W_k into an
+orthonormal tangent frame via thin QR. Together, the pairs (mean_k, frame_k)
+form a discrete sample of the tangent bundle of the manifold (an "atlas" of
+local charts), which the downstream steps use to build a distance matrix.
 """
 
 import numpy as np
+from vamm import Gaussian
+
+
+def fit_mfa(data, C, H, cov_type="mfa", shared=False, seed=None):
+    """
+    Fit a (mixture of) Gaussian model to the data.
+
+    Parameters
+    ----------
+    data : (N, D) array
+    C : int
+        Number of mixture components.
+    H : int
+        Latent / local manifold dimension (only used for cov_type "mfa").
+    cov_type : {"isotropic", "diagonal", "mfa", "full"}
+    shared : bool
+        Whether the covariance is shared across components.
+    seed : int or None
+        RNG seed for the fit.
+
+    Returns
+    -------
+    model : vamm.Gaussian
+        The fitted model.
+    obj : float
+        Final training objective.
+    """
+    _, D = np.asarray(data).shape
+    model = Gaussian(C=C, D=D, covariance_type=cov_type, shared=shared, H=H)
+    obj, _ = model.fit(data, verbose=False, rng=seed)
+    return model, obj
 
 
 def extract_tangent_frame(loadings: np.ndarray, n_tangents: int = 1, noise: np.ndarray = None):
@@ -106,7 +142,7 @@ def direction_alignment(mean_i, mean_j, tangents_i, tangents_j):
     How well does the connecting vector (mean_i -> mean_j) align
     with the tangent frames of both components?
 
-    Used in graph_builder to prefer neighbors that lie along the manifold,
+    Used in graph construction to prefer neighbors that lie along the manifold,
     not across it.
 
     Parameters
@@ -135,7 +171,7 @@ def direction_alignment(mean_i, mean_j, tangents_i, tangents_j):
 
 def atlas_summary(means, tangents, variances, noise_var):
     """
-    Print a readable summary of the fitted atlas.
+    Print a readable summary of the fitted tangent frames.
     Useful for quick sanity checks after training.
 
     Parameters
@@ -155,4 +191,3 @@ def atlas_summary(means, tangents, variances, noise_var):
     print(f"  Mean signal/noise     : {snr.mean():.2f}")
     print(f"  Min SNR (worst chart) : {snr.min():.2f}  (component {snr.argmin()})")
     print(f"  Max SNR (best chart)  : {snr.max():.2f}  (component {snr.argmax()})")
-

@@ -1,4 +1,36 @@
+"""
+Pipeline step §3.5: naive loop detection by greedy graph traversal (baseline).
+
+Builds a k-NN graph from a precomputed distance matrix (§3.4) and greedily
+traverses it into a single closed loop. Interpolation into a spline (§3.7) is a
+separate step (see interpolation.interpolate_curves).
+"""
+
 import numpy as np
+
+from core.graph import build_knn_graph
+
+
+def detect_traversal(distance_matrix, k=2):
+    """
+    Naive baseline detection: k-NN graph -> greedy traversal -> single loop.
+
+    Parameters
+    ----------
+    distance_matrix : (N, N) array
+    k : int
+        Number of neighbors per node in the k-NN graph.
+
+    Returns
+    -------
+    result : dict with keys
+        "curves" : [{"type": "loop", "component": 0, "order": [...]}],
+        "graph"  : the k-NN graph dict (adjacency, edges, degrees).
+    """
+    graph = build_knn_graph(distance_matrix, k=k)
+    order = traverse_graph(graph["adjacency"])
+    curves = [{"type": "loop", "component": 0, "order": order}]
+    return {"curves": curves, "graph": graph}
 
 
 def traverse_graph(adjacency, start=0):

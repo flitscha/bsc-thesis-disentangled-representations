@@ -17,9 +17,8 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.experiment import Experiment
-from core.pipeline import build_graph, build_spline_from_graph
-from core.traversal import traverse_graph
+from core.pipeline import ManifoldPipeline
+from data.synthetic import make_dataset
 from visualization.gmm import visualize_gmm
 from visualization.graph import visualize_traversal
 from visualization.spline import visualize_spline
@@ -49,7 +48,9 @@ class Manifold1DTab:
         self.image_tag = f"manifold1d_plot_image_{uid}"
         self.plot_panel_tag = f"manifold1d_plot_panel_{uid}"
 
-        self.experiment = None
+        self.pipe = None
+        self.data = None
+        self.projection = None
         self.graph_edges = None
         self.traversal_order = None
         self.spline = None
@@ -153,27 +154,25 @@ class Manifold1DTab:
         threading.Thread(target=self._run_training_thread, daemon=True).start()
 
     def _run_training_thread(self):
-        self.experiment = Experiment(
-            data_type=dpg.get_value(self.data_type),
-            N=dpg.get_value(self.num_points),
-            C=dpg.get_value(self.num_components),
-            H=1,
-            cov_type="mfa",
-            shared=False,
+        self.data, self.projection = make_dataset(
+            dpg.get_value(self.data_type),
+            dpg.get_value(self.num_points),
             embed_dim=dpg.get_value(self.embed_dim) or None,
         )
-        self.experiment.generate_data()
-        self.experiment.train()
+        self.pipe = ManifoldPipeline(
+            n_components=dpg.get_value(self.num_components),
+            latent_dim=1, cov_type="mfa", shared=False,
+            detection="traversal", n_neighbors=dpg.get_value(self.k_neighbors),
+        )
+        self.pipe.fit(self.data)
 
-        # graph
-        graph = build_graph(self.experiment.model, n_tangents=1, k=dpg.get_value(self.k_neighbors))
-        self.graph_edges = graph["edges"]
+        # structure detection (naive graph-traversal baseline)
+        res = self.pipe.detect()
+        self.graph_edges = res["graph"]["edges"]
+        self.traversal_order = res["order"]
+        self.spline = res["spline"]
 
-        # spline
-        self.traversal_order = traverse_graph(graph["adjacency"])
-        self.spline = build_spline_from_graph(self.experiment.model, graph)
-
-        dpg.set_value(self.status_text, f"objective: {self.experiment.obj:.4f}")
+        dpg.set_value(self.status_text, f"objective: {self.pipe.obj:.4f}")
         dpg.set_value(self.draw_mode, "graph")
         self._request_async_plot()
 
@@ -213,7 +212,7 @@ class Manifold1DTab:
     def _on_mouse_down(self, sender, app_data):
         if not dpg.is_item_hovered(self.image_tag):
             return
-        if not self._is_3d() or self.experiment is None:
+        if not self._is_3d() or self.pipe is None:
             return
         self._dragging = True
         self._last_mouse_pos = None
@@ -281,7 +280,7 @@ class Manifold1DTab:
 
     # ------------------- Plotting ------------------------
     def _update_plot(self):
-        if self.experiment is None:
+        if self.pipe is None:
             return
 
         is_3d = self._is_3d()
@@ -292,13 +291,13 @@ class Manifold1DTab:
         if is_3d:
             ax.view_init(elev=self.elev, azim=self.azim)
 
-        model = self.experiment.model
-        proj = self.experiment.projection_matrix
+        model = self.pipe.model
+        proj = self.projection
         mode = dpg.get_value(self.draw_mode)
 
         if mode == "data":
             visualize_gmm(
-                ax=ax, data=self.experiment.data, means=model.means,
+                ax=ax, data=self.data, means=model.means,
                 covariances=model.covariances, priors=model.prior,
                 projection_matrix=proj, draw_points=True,
                 visualisation_mode="none", draw_means=False,
@@ -306,7 +305,7 @@ class Manifold1DTab:
 
         elif mode == "mfa":
             visualize_gmm(
-                ax=ax, data=self.experiment.data, means=model.means,
+                ax=ax, data=self.data, means=model.means,
                 covariances=model.covariances, priors=model.prior,
                 projection_matrix=proj, draw_points=True,
                 visualisation_mode="line", draw_means=True,
@@ -319,8 +318,8 @@ class Manifold1DTab:
         elif mode == "spline" and self.spline is not None:
             visualize_spline(
                 ax=ax, 
-                data=self.experiment.data, 
-                spline=self.spline, 
+                data=self.data,
+                spline=self.spline,
                 t=self.t, 
                 draw_points=True
             )

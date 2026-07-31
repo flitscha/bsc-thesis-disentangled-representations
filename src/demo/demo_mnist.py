@@ -13,11 +13,8 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from data.mnist_rotation import make_rotation_dataset
-from core.experiment import Experiment
-from core.atlas import extract_tangent_frame, atlas_summary
-from core.graph import compute_score_matrix, build_knn_graph
-from core.traversal import traverse_graph
-from core.interpolation import build_closed_spline
+from core.pipeline import ManifoldPipeline
+from core.mfa import atlas_summary
 from visualization.mnist import render_samples_frame, render_pca_frame, render_spline_frame
 
 DPI = 100
@@ -373,26 +370,18 @@ class MNISTDemoTab:
         k = dpg.get_value(self.k_in)
         pca_dim = dpg.get_value(self.pca_dim_in)
 
-        exp = Experiment(
-            data_type="external", N=len(self.X), C=C, H=1,
-            cov_type="mfa", shared=False,
+        exp = ManifoldPipeline(
+            n_components=C, latent_dim=1, cov_type="mfa", shared=False,
             pca_dim=pca_dim if pca_dim > 0 else None,
+            detection="traversal", n_neighbors=k,
         )
-        exp.data = self.X.copy()
-        exp.train()
+        exp.fit(self.X.copy())
         self.exp = exp
 
-        means = exp.model.means
-        tangents, variances, noise_var = extract_tangent_frame(
-            exp.model.A, n_tangents=1, noise=exp.model.variance
-        )
-        atlas_summary(means, tangents, variances, noise_var)
+        atlas_summary(exp.model.means, exp.tangents, exp.variances, exp.noise_)
 
-        score = compute_score_matrix(means, tangents, variances)
-        graph = build_knn_graph(score, k=k)
-
-        order = traverse_graph(graph["adjacency"])
-        self.spline = build_closed_spline(means[order])
+        res = exp.detect()
+        self.spline = res["spline"]
 
         txt = "training done."
         dpg.set_value(self.train_lbl, txt)
@@ -424,7 +413,7 @@ class MNISTDemoTab:
         if self.spline is None:
             return np.zeros(784)
         point = self.spline(t)
-        if self.exp is not None and self.exp.pca_components is not None:
+        if self.exp is not None and self.exp.pre is not None:
             point = self.exp.reconstruct(point)
         return point
 

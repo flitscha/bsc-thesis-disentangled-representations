@@ -17,8 +17,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.experiment import Experiment
-from core.topology import analyze_topology
+from core.pipeline import ManifoldPipeline
 from data.basic_manifolds import (
     curve_in_3d,
     half_circle,
@@ -66,8 +65,8 @@ class TopologyDemoTab:
         self.loop_selector_tag = f"{self.plot_panel_tag}_loop_selector_{uid}"
 
         self.raw_data = None       # (N, D) point cloud, ground-truth data
-        self.experiment = None     # fitted MFA (Experiment instance)
-        self.topology = None       # result dict from analyze_topology
+        self.pipe = None           # fitted ManifoldPipeline
+        self.topology = None       # result dict from pipe.detect()
         self.selected_loop = 0     # index into self.topology["loops"]
 
         self.tex_w, self.tex_h = 700, 700
@@ -173,20 +172,14 @@ class TopologyDemoTab:
 
         self.raw_data = data
 
-        self.experiment = Experiment(
-            data_type=None,  # we pass data directly below instead of generating it internally
-            N=n,
-            C=dpg.get_value(self.num_components),
-            H=1,
-            cov_type="mfa",
-            shared=False,
-            embed_dim=None,
+        self.pipe = ManifoldPipeline(
+            n_components=dpg.get_value(self.num_components),
+            latent_dim=1, cov_type="mfa", shared=False,
+            detection="tda",
         )
-        # NOTE: assumes Experiment supports pre-set data; if not, see comment below.
-        self.experiment.data = data
-        self.experiment.train()
+        self.pipe.fit(data)
 
-        self.topology = analyze_topology(self.experiment.model)
+        self.topology = self.pipe.detect()
         self.selected_loop = 0
         self._rebuild_loop_selector()
 
@@ -194,7 +187,7 @@ class TopologyDemoTab:
         n_loops = len(self.topology["loops"])
         dpg.set_value(
             self.status_text,
-            f"objective: {self.experiment.obj:.4f} | components: {n_components} | loops: {n_loops}",
+            f"objective: {self.pipe.obj:.4f} | components: {n_components} | loops: {n_loops}",
         )
         dpg.set_value(self.visualisation_mode, "Graph")
         self._request_async_plot()
@@ -359,7 +352,7 @@ class TopologyDemoTab:
             ax.set_title("train first")
             return
 
-        means = self.experiment.model.means
+        means = self.pipe.model.means
         labels = self.topology["components"]
 
         for c in np.unique(labels):
@@ -388,7 +381,7 @@ class TopologyDemoTab:
         interpolated = curve["spline"](t_vals)
         self._line(ax, interpolated, is_3d, c="tab:red", linewidth=2)
 
-        means = self.experiment.model.means[curve["order"]]
+        means = self.pipe.model.means[curve["order"]]
         self._scatter(ax, means, is_3d, s=25, c="black")
 
         label = f"Loop {self.selected_loop}" if curve["type"] == "loop" else f"Path {self.selected_loop}"

@@ -1,40 +1,18 @@
+"""
+Pipeline step §3.6: loop and connected-component detection via topological data
+analysis (persistent homology, gudhi).
+
+Operates on a precomputed distance matrix (built in §3.4, see graph.py) and
+returns the detected structure as index orders -- interpolation into splines
+(§3.7) is a separate step (see interpolation.interpolate_curves).
+"""
+
 import numpy as np
 import gudhi
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra, minimum_spanning_tree
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
-
-from core.atlas import extract_tangent_frame
-from core.graph import compute_score_matrix
-from core.interpolation import build_closed_spline, build_open_spline
-
-
-def compute_distance_matrix(model, n_tangents=1, w_overlap=0.4, w_direction=0.4):
-    """
-    Manifold-aware distance matrix (means + covariances), used for H1 loop
-    routing where penalizing cross-manifold shortcuts is desirable.
-    """
-    tangents, variances, _ = extract_tangent_frame(model.A, n_tangents)
-    return compute_score_matrix(model.means, tangents, variances, w_overlap, w_direction)
-
-
-def compute_euclidean_distance_matrix(model):
-    """
-    Plain pairwise Euclidean distance between MFA means. Used for H0
-    (connected-component) detection.
-
-    NOTE: the geometry-aware score matrix above is intentionally NOT used
-    here. It penalizes disagreeing tangent frames (chart_overlap /
-    direction_alignment), which can artificially inflate the "distance"
-    between spatially close components -- e.g. near-isotropic components
-    in high-curvature regions, where the dominant tangent direction is
-    poorly defined. That fragments a single, topologically connected
-    region into several spurious components.
-    """
-    means = model.means
-    diff = means[:, None, :] - means[None, :, :]
-    return np.linalg.norm(diff, axis=-1)
 
 
 def compute_persistence(distance_matrix, max_dimension=1, max_edge_length=None):
@@ -154,27 +132,46 @@ def extract_path(distance_matrix, node_indices):
     return [int(node_indices[i]) for i in path_local]
 
 
-def analyze_topology(
-    model, n_tangents=1, min_persistence_h0=None, min_persistence_h1=None,
-    w_overlap=0.4, w_direction=0.4, auto_ratio_h1=0.1,
+def detect_tda(
+    distance_matrix, min_persistence_h0=None, min_persistence_h1=None,
+    auto_ratio_h1=0.1,
 ):
+    """
+    Detect connected components (H0) and loops (H1) from a distance matrix
+    via topological data analysis (persistent homology).
 
-    # --- H0: component count, on plain Euclidean distance (see note above)
-    D_euclid = compute_euclidean_distance_matrix(model)
-    D_score = compute_distance_matrix(model, n_tangents, w_overlap, w_direction)
+    Parameters
+    ----------
+    distance_matrix : (N, N) array
+        Pairwise distances between the MFA components (built in §3.4).
+    min_persistence_h0, min_persistence_h1 : float or None
+        Persistence thresholds; None uses an automatic heuristic.
+    auto_ratio_h1 : float
+        Fallback ratio for the single-bar H1 case (see significant_bars).
+
+    Returns
+    -------
+    result : dict with keys
+        "components" : (N,) component label per node,
+        "curves"     : list of {type, component, order[, birth, death,
+                       persistence]} -- index orders only, no splines,
+        "diagram", "diagram_h0" : the persistence diagrams.
+    """
+    D = distance_matrix
 
     if min_persistence_h0 is None:
-        min_persistence_h0 = 0.05 * float(np.max(D_score))
+        min_persistence_h0 = 0.05 * float(np.max(D))
 
-    _, diagram_h0, _ = compute_persistence(D_score, max_dimension=0)
+    # --- H0: connected components
+    _, diagram_h0, _ = compute_persistence(D, max_dimension=0)
     h0_bars = significant_bars(diagram_h0, dim=0, min_persistence=min_persistence_h0)
-    components = extract_components(D_score, n_components=len(h0_bars))
+    components = extract_components(D, n_components=len(h0_bars))
 
-    # --- H1: loop detection, on manifold-aware score matrix
-    _, diagram, generators = compute_persistence(D_score, max_dimension=1)
+    # --- H1: loop detection
+    _, diagram, generators = compute_persistence(D, max_dimension=1)
     h1_bars = significant_bars(
         diagram, dim=1, min_persistence=min_persistence_h1,
-        scale_ref=float(np.max(D_score)), auto_ratio=auto_ratio_h1,
+        scale_ref=float(np.max(D)), auto_ratio=auto_ratio_h1,
     )
     gen_rows = generators[1][0] if len(generators[1]) > 0 else np.empty((0, 4), dtype=int)
 
@@ -182,16 +179,15 @@ def analyze_topology(
     covered_components = set()
 
     for (birth, death) in h1_bars:
-        row = min(gen_rows, key=lambda r: abs(D_score[int(r[0]), int(r[1])] - birth))
+        row = min(gen_rows, key=lambda r: abs(D[int(r[0]), int(r[1])] - birth))
         u, v = int(row[0]), int(row[1])
-        order = extract_loop(D_score, (u, v), birth_scale=D_score[u, v])
-        points = model.means[order]
+        order = extract_loop(D, (u, v), birth_scale=D[u, v])
         comp_id = int(components[u])
         covered_components.add(comp_id)
         curves.append({
             "type": "loop", "component": comp_id,
             "birth": birth, "death": death, "persistence": death - birth,
-            "order": order, "spline": build_closed_spline(points),
+            "order": order,
         })
 
     # components without a detected loop: trace as an open path (MST diameter)
@@ -202,19 +198,14 @@ def analyze_topology(
         node_idx = np.where(components == c)[0]
         if len(node_idx) < 2:
             continue
-        order = extract_path(D_score, node_idx)
-        points = model.means[order]
+        order = extract_path(D, node_idx)
         curves.append({
-            "type": "path", "component": c,
-            "order": order, "spline": build_open_spline(points),
+            "type": "path", "component": c, "order": order,
         })
 
     return {
-        "distance_matrix": D_score,
-        "component_distance_matrix": D_euclid,
-        "diagram": diagram,
-        "diagram_h0": diagram_h0,
         "components": components,
         "curves": curves,
-        "loops": [c for c in curves if c["type"] == "loop"],  # backward-compat
+        "diagram": diagram,
+        "diagram_h0": diagram_h0,
     }

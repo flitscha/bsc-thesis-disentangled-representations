@@ -4,7 +4,7 @@ where edge weights reflect geodesic proximity along the manifold.
 """
 
 import numpy as np
-from core.atlas import chart_overlap, direction_alignment
+from core.mfa import chart_overlap, direction_alignment
 
 
 # Score matrix
@@ -75,6 +75,20 @@ def compute_score_matrix(
 
     np.fill_diagonal(score, 0.0)
     return score
+
+
+def euclidean_distance_matrix(means: np.ndarray) -> np.ndarray:
+    """
+    Plain pairwise Euclidean distance between component means.
+
+    An alternative to the geometry-aware score matrix. The score matrix
+    penalizes disagreeing tangent frames, which can artificially inflate the
+    distance between spatially close components (e.g. near-isotropic components
+    in high-curvature regions, where the dominant tangent direction is poorly
+    defined) and thereby fragment a connected region into spurious components.
+    """
+    diff = means[:, None, :] - means[None, :, :]
+    return np.linalg.norm(diff, axis=-1)
 
 
 # Graph construction

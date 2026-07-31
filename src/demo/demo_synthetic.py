@@ -16,7 +16,8 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.experiment import Experiment
+from core.pipeline import ManifoldPipeline
+from data.synthetic import make_dataset
 from visualization.gmm import visualize_gmm
 
 
@@ -43,7 +44,9 @@ class SyntheticDemoTab:
         self.image_tag = f"synthetic_plot_image_{uid}"
         self.plot_panel_tag = f"synthetic_plot_panel_{uid}"
 
-        self.experiment = None
+        self.pipe = None
+        self.data = None
+        self.projection = None
 
         # initial texture resolution
         self.tex_w, self.tex_h = 700, 700
@@ -142,19 +145,20 @@ class SyntheticDemoTab:
 
     def _on_train(self):
         dpg.set_value(self.status_text, "training is running...")
-        self.experiment = Experiment(
-            data_type=dpg.get_value(self.data_type),
-            N=dpg.get_value(self.num_points),
-            C=dpg.get_value(self.num_components),
-            H=dpg.get_value(self.manifold_dim),
-            cov_type=dpg.get_value(self.cov_type),
-            shared=dpg.get_value(self.shared_cov),
+        self.data, self.projection = make_dataset(
+            dpg.get_value(self.data_type),
+            dpg.get_value(self.num_points),
             embed_dim=dpg.get_value(self.embed_dim) or None,
         )
-        self.experiment.generate_data()
-        self.experiment.train()
+        self.pipe = ManifoldPipeline(
+            n_components=dpg.get_value(self.num_components),
+            latent_dim=dpg.get_value(self.manifold_dim),
+            cov_type=dpg.get_value(self.cov_type),
+            shared=dpg.get_value(self.shared_cov),
+        )
+        self.pipe.fit(self.data)
 
-        dpg.set_value(self.status_text, f"objective: {self.experiment.obj:.4f}")
+        dpg.set_value(self.status_text, f"objective: {self.pipe.obj:.4f}")
         self._update_plot()
 
 
@@ -169,7 +173,7 @@ class SyntheticDemoTab:
     def _on_mouse_down(self, sender, app_data):
         if not dpg.is_item_hovered(self.image_tag):
             return
-        if not self._is_3d() or self.experiment is None:
+        if not self._is_3d() or self.pipe is None:
             return
         self._dragging = True
         self._last_mouse_pos = None
@@ -242,7 +246,7 @@ class SyntheticDemoTab:
 
     # ------------------- Plotting ------------------------
     def _update_plot(self):
-        if self.experiment is None:
+        if self.pipe is None:
             return
 
         is_3d = self._is_3d()
@@ -255,11 +259,11 @@ class SyntheticDemoTab:
 
         visualize_gmm(
             ax=ax,
-            data=self.experiment.data,
-            means=self.experiment.model.means,
-            covariances=self.experiment.model.covariances,
-            priors=self.experiment.model.prior,
-            projection_matrix=self.experiment.projection_matrix,
+            data=self.data,
+            means=self.pipe.model.means,
+            covariances=self.pipe.model.covariances,
+            priors=self.pipe.model.prior,
+            projection_matrix=self.projection,
             draw_points=dpg.get_value(self.draw_points),
             visualisation_mode=dpg.get_value(self.visualisation_mode),
             draw_means=dpg.get_value(self.draw_means),
