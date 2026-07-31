@@ -15,7 +15,7 @@ def compute_distance_matrix(model, n_tangents=1, w_overlap=0.4, w_direction=0.4)
     Manifold-aware distance matrix (means + covariances), used for H1 loop
     routing where penalizing cross-manifold shortcuts is desirable.
     """
-    tangents, variances, _ = extract_tangent_frame(model.covariances, n_tangents)
+    tangents, variances, _ = extract_tangent_frame(model.A, n_tangents)
     return compute_score_matrix(model.means, tangents, variances, w_overlap, w_direction)
 
 

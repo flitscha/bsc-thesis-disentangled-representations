@@ -5,3 +5,8 @@ __pycache__/
 .env
 .venv
 data/dsprites/*.npz
+
+thesis
+presentations
+meeting_notes
+literature

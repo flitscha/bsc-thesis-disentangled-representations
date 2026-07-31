@@ -8,51 +8,67 @@ linear approximation (tangent frame) to the data manifold at that point.
 import numpy as np
 
 
-def extract_tangent_frame(covariances: np.ndarray, n_tangents: int = 1):
+def extract_tangent_frame(loadings: np.ndarray, n_tangents: int = 1, noise: np.ndarray = None):
     """
-    Extract the n_tangents principal directions from each covariance matrix.
-    These span the local tangent space of the manifold at each component.
+    Extract an orthonormal basis of the local tangent space from each MFA
+    factor loading matrix W_k via the thin QR decomposition W_k = T_k R_k.
+
+    The column space of W_k is interpreted as the local tangent space of the
+    data manifold at component k. QR yields an orthonormal basis T_k of exactly
+    that subspace (span(T_k) = span(W_k)). For n_tangents = 1 this reduces to
+    normalizing the single tangent vector.
 
     Parameters
     ----------
-    covariances : array of shape (N, D, D)
-    n_tangents  : int
-        How many tangent directions to keep per component.
+    loadings : array of shape (N, D, H)
+        Factor loading matrices W_k, e.g. 'model.A' of a vamm MFA model.
+    n_tangents : int
+        Local manifold dimension to keep per component (n_tangents <= H).
+    noise : array of shape (N, D) or None
+        Optional diagonal MFA noise variances Psi_k (e.g. 'model.variance').
+        If given, noise_var[i] is their mean; otherwise noise_var is all zeros.
 
     Returns
     -------
     tangents : ndarray, shape (N, D, n_tangents)
-        Orthonormal tangent vectors. tangents[i, :, k] is the k-th
-        tangent direction at component i, sorted by descending variance.
+        Orthonormal tangent frames. tangents[i, :, k] is the k-th tangent
+        direction at component i, ordered by descending captured variance.
     variances : ndarray, shape (N, n_tangents)
-        Corresponding eigenvalues (variance along each tangent direction).
-        Useful for weighting: a direction with tiny variance is unreliable.
+        Variance captured along each tangent direction, computed as the squared
+        row norms of R_k. Their sum equals ||W_k||_F^2, i.e. the total variance
+        the loading matrix contributes to the tangent space. Useful for
+        weighting: a direction with tiny variance is unreliable.
     noise_var : ndarray, shape (N,)
-        Mean variance in the normal directions (ambient - tangent space).
-        Approximates the isotropic noise level of the MFA model.
+        Mean diagonal noise variance per component (0 if 'noise' is None).
+        Approximates the off-manifold noise level of the MFA model.
     """
-    covariances = np.asarray(covariances)
-    N, D, _ = covariances.shape
+    loadings = np.asarray(loadings)
+    N, D, H = loadings.shape
+
+    if n_tangents > H:
+        raise ValueError(
+            f"n_tangents={n_tangents} exceeds the loading rank H={H}."
+        )
 
     tangents = np.zeros((N, D, n_tangents))
     variances = np.zeros((N, n_tangents))
     noise_var = np.zeros(N)
 
-    for i, cov in enumerate(covariances):
-        # eigh: assumes symmetric, returns eigenvalues ascending
-        vals, vecs = np.linalg.eigh(cov)
+    for i, W in enumerate(loadings):
+        # thin QR: W (D, H) = T (D, H) @ R (H, H), T has orthonormal columns
+        T, R = np.linalg.qr(W)
 
-        # largest n_tangents eigenvalues/vectors
-        idx = np.argsort(vals)[::-1]  # descending
-        top_idx = idx[:n_tangents]
-        rest_idx = idx[n_tangents:]
+        # variance captured along tangent direction j equals ||W^T t_j||^2,
+        # which (since W = T R) is the squared norm of the j-th row of R.
+        row_var = np.sum(R ** 2, axis=1)  # (H,)
 
-        tangents[i] = vecs[:, top_idx]  # (D, n_tangents)
-        variances[i] = vals[top_idx]
+        # keep the n_tangents directions capturing the most variance
+        order = np.argsort(row_var)[::-1][:n_tangents]
+        tangents[i] = T[:, order]
+        variances[i] = row_var[order]
 
-        # noise = mean variance in normal directions
-        if len(rest_idx) > 0:
-            noise_var[i] = vals[rest_idx].mean()
+    if noise is not None:
+        noise_var = np.asarray(noise).mean(axis=1)
 
     return tangents, variances, noise_var
 

@@ -35,7 +35,7 @@ class Experiment:
         self.embed_dim = embed_dim
         if self.embed_dim == 0:
             self.embed_dim = None
-        self.noise = 0.005
+        self.noise = noise
         self.seed = seed
 
         # --- PCA pre-projection -------------------------------------------

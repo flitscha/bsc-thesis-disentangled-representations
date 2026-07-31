@@ -383,8 +383,9 @@ class MNISTDemoTab:
         self.exp = exp
 
         means = exp.model.means
-        covs  = exp.model.covariances
-        tangents, variances, noise_var = extract_tangent_frame(covs, n_tangents=1)
+        tangents, variances, noise_var = extract_tangent_frame(
+            exp.model.A, n_tangents=1, noise=exp.model.variance
+        )
         atlas_summary(means, tangents, variances, noise_var)
 
         score = compute_score_matrix(means, tangents, variances)

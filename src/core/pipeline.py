@@ -8,9 +8,8 @@ from core.interpolation import build_closed_spline
 
 def build_graph(model, n_tangents=1, k=2):
     means = model.means
-    covs = model.covariances
 
-    tangents, variances, _ = extract_tangent_frame(covs, n_tangents)
+    tangents, variances, _ = extract_tangent_frame(model.A, n_tangents)
 
     score = compute_score_matrix(means, tangents, variances)
     graph = build_knn_graph(score, k=k)
