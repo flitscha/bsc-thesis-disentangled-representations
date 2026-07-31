@@ -7,6 +7,7 @@ from data.basic_manifolds import (
     torus,
     curve_in_3d
 )
+from core.preprocessing import PCARotation
 from vamm import Gaussian
 
 
@@ -38,11 +39,9 @@ class Experiment:
         self.noise = noise
         self.seed = seed
 
-        # --- PCA pre-projection -------------------------------------------
+        # --- PCA pre-projection (thesis §3.2, see core/preprocessing.py) ---
         self.pca_dim = pca_dim if (pca_dim is not None and pca_dim > 0) else None
-        self.pca_components = None # (D_original, pca_dim) set after _apply_pca
-        self.pca_mean = None # (D_original,) for zero-mean PCA
-        self.pca_rotation = None # (pca_dim, pca_dim) hält die zufällige Rotation
+        self.pre = None  # fitted PCARotation, set in _apply_pca
 
         self.data = None
         self.projection_matrix = None
@@ -72,53 +71,34 @@ class Experiment:
             )
 
     # ------------------------------------------------------------------
-    # PCA helpers 
+    # PCA + random orthogonal transformation (delegated to PCARotation)
     # ------------------------------------------------------------------
 
     def _apply_pca(self):
-        """
-        Project self.data down to pca_dim and apply a random orthogonal matrix.
-        
-        Why rotate? Standard PCA strictly sorts axes by variance, which hurts MFA
-        when it fits a diagonal noise matrix. Rotating preserves the optimal subspace
-        but scatters variance evenly across coordinates, removing the axis-sorting bias.
-        """
-        # TODO: document and plot the issue, when not using the random orthogonal matrix.
-
+        """Fit the PCA + random orthogonal transform and project self.data."""
         X = self.data
-        self.pca_mean = X.mean(axis=0) # (D,)
-        X_centered = X - self.pca_mean
-
-        # Standard PCA via SVD
-        _, _, Vt = np.linalg.svd(X_centered, full_matrices=False)
-
-        # Prevent slicing errors if fewer samples/singular vectors exist than pca_dim
-        actual_pca_dim = min(self.pca_dim, Vt.shape[0])
-        base_components = Vt[:actual_pca_dim].T # (D, actual_pca_dim)
-
-        # Generate a uniform random orthogonal matrix using QR decomposition
-        rng = np.random.default_rng(self.seed)
-        H_mat = rng.standard_normal((actual_pca_dim, actual_pca_dim))
-        Q, R = np.linalg.qr(H_mat)
-
-        # Sign correction to ensure a true uniform random rotation
-        d = np.diag(R)
-        ph = d / np.abs(d)
-        self.pca_rotation = Q * ph # (actual_pca_dim, actual_pca_dim)
-
-        # Combine PCA projection and rotation into a single transformation matrix
-        self.pca_components = base_components @ self.pca_rotation
-
-        self.data = X_centered @ self.pca_components # (N, actual_pca_dim)
+        self.pre = PCARotation(self.pca_dim, rng=self.seed).fit(X)
+        self.data = self.pre.transform(X)
         print(f"[pca + rot] projected {X.shape} -> {self.data.shape}")
 
     def reconstruct(self, points: np.ndarray) -> np.ndarray:
-        """
-        Back-project points from rotated PCA space to the original data space.
-        """
-        if self.pca_components is None:
+        """Back-project points from rotated PCA space to the original data space."""
+        if self.pre is None:
             return points
-        return points @ self.pca_components.T + self.pca_mean
+        return self.pre.inverse_transform(points)
+
+    # Backward-compatible accessors for the fitted transform.
+    @property
+    def pca_components(self):
+        return None if self.pre is None else self.pre.components_
+
+    @property
+    def pca_mean(self):
+        return None if self.pre is None else self.pre.mean_
+
+    @property
+    def pca_rotation(self):
+        return None if self.pre is None else self.pre.rotation_
 
 
     def train(self):
