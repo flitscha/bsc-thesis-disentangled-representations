@@ -11,6 +11,8 @@ local charts), which the downstream steps use to build a distance matrix.
 """
 
 import numpy as np
+from scipy.special import logsumexp
+from scipy.stats import multivariate_normal
 from vamm import Gaussian
 
 
@@ -42,6 +44,76 @@ def fit_mfa(data, C, H, cov_type="mfa", shared=False, seed=None):
     model = Gaussian(C=C, D=D, covariance_type=cov_type, shared=shared, H=H)
     obj, _ = model.fit(data, verbose=False, rng=seed)
     return model, obj
+
+
+def mfa_log_likelihood(model, X):
+    """
+    Exact per-sample log-density log p_Theta(x_n) of a fitted (mixture of)
+    Gaussian model, evaluated on (held-out) data.
+
+    The model defines the Gaussian-mixture density
+        p(x) = sum_k pi_k * N(x | mu_k, Sigma_k),
+    with mixing weights pi_k (`model.prior`), means mu_k (`model.means`) and
+    covariances Sigma_k = W_k W_k^T + Psi_k (`model.covariances`). This is
+    computed directly instead of using the value returned by `model.fit`, which
+    is only a truncated variational objective on the *training* set.
+
+    Parameters
+    ----------
+    model : vamm.Gaussian
+        A fitted model (any covariance_type).
+    X : (N, D) array
+        Points to score, in the same space the model was fitted in.
+
+    Returns
+    -------
+    log_p : (N,) ndarray
+        Log-density of each point under the mixture.
+    """
+    X = np.asarray(X)
+    means = np.asarray(model.means)
+    covariances = np.asarray(model.covariances)
+    log_pi = np.log(np.asarray(model.prior) + 1e-300)
+
+    C = means.shape[0]
+    log_comp = np.empty((X.shape[0], C))
+    for k in range(C):
+        log_comp[:, k] = log_pi[k] + multivariate_normal.logpdf(
+            X, mean=means[k], cov=covariances[k], allow_singular=True
+        )
+    return logsumexp(log_comp, axis=1)
+
+
+def average_nll(model, X, per_dim=True):
+    """
+    Average negative log-likelihood of the model on `X`, optionally normalized
+    by the ambient dimension (thesis §3.2, NLL_norm).
+
+    NLL_norm = -1 / (N * D) * sum_n log p_Theta(x_n)
+
+    Dividing by D removes the trivial growth of the log-density with the number
+    of dimensions, making the score comparable across different PCA dimensions.
+    (As noted in the thesis, scores at different D still describe different
+    reduced representations, so they mainly reflect training stability + fit.)
+
+    Parameters
+    ----------
+    model : vamm.Gaussian
+        A fitted model.
+    X : (N, D) array
+        Evaluation data (use a held-out validation set).
+    per_dim : bool
+        If True, also divide by the ambient dimension D.
+
+    Returns
+    -------
+    nll : float
+    """
+    log_p = mfa_log_likelihood(model, X)
+    nll = -log_p.mean()
+    if per_dim:
+        nll /= X.shape[1]
+    return float(nll)
 
 
 def extract_tangent_frame(loadings: np.ndarray, n_tangents: int = 1, noise: np.ndarray = None):
