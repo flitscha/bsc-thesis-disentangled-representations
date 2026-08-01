@@ -72,15 +72,38 @@ def mfa_log_likelihood(model, X):
     """
     X = np.asarray(X)
     means = np.asarray(model.means)
-    covariances = np.asarray(model.covariances)
     log_pi = np.log(np.asarray(model.prior) + 1e-300)
-
     C = means.shape[0]
     log_comp = np.empty((X.shape[0], C))
-    for k in range(C):
-        log_comp[:, k] = log_pi[k] + multivariate_normal.logpdf(
-            X, mean=means[k], cov=covariances[k], allow_singular=True
-        )
+
+    if model.covariance_type == "mfa":
+        # Low-rank + diagonal covariance Sigma_k = W_k W_k^T + Psi_k.
+        # Evaluate log N via the Woodbury identity / matrix determinant lemma,
+        # which is O(N C D H) instead of O(N C D^3) for the dense (D, D) form
+        # (vamm itself warns that `covariances` is expensive for large D).
+        W = np.asarray(model.A)          # (C, D, H)
+        psi = np.asarray(model.variance)  # (C, D) diagonal noise variances
+        D, Hdim = W.shape[1], W.shape[2]
+        log2pi = np.log(2.0 * np.pi)
+        for k in range(C):
+            Wk, psi_k = W[k], psi[k]      # (D, H), (D,)
+            pinv = 1.0 / psi_k
+            diff = X - means[k]           # (N, D)
+            # M = I_H + W^T Psi^-1 W  (H, H), then Cholesky
+            M = np.eye(Hdim) + (Wk.T * pinv) @ Wk
+            Lm = np.linalg.cholesky(M)
+            diff_pinv = diff * pinv       # (N, D)
+            proj = np.linalg.solve(Lm, (diff_pinv @ Wk).T).T  # (N, H)
+            # (x-mu)^T Sigma^-1 (x-mu) via Woodbury
+            quad = np.sum(diff_pinv * diff, axis=1) - np.sum(proj * proj, axis=1)
+            log_det = np.sum(np.log(psi_k)) + 2.0 * np.sum(np.log(np.diag(Lm)))
+            log_comp[:, k] = log_pi[k] - 0.5 * (D * log2pi + log_det + quad)
+    else:
+        covariances = np.asarray(model.covariances)
+        for k in range(C):
+            log_comp[:, k] = log_pi[k] + multivariate_normal.logpdf(
+                X, mean=means[k], cov=covariances[k], allow_singular=True
+            )
     return logsumexp(log_comp, axis=1)
 
 
