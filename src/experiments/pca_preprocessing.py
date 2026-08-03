@@ -1,10 +1,10 @@
 """
 Does PCA (and an extra random orthogonal transform Q) help the MFA density fit?
 
-We fit an MFA at 100 PCA dimensions (D = 5, 10, ..., 500), 5 times each, once on
-plain PCA and once on PCA+Q. Quality is the held-out negative log-likelihood per
-sample and dimension (NLL_norm, lower is better; see core.mfa.average_nll); the
-"no PCA" line is the MFA on the raw 500-d data.
+We fit an MFA across PCA dimensions D = 5..300 (dense near the optimum), 5 times
+each, once on plain PCA and once on PCA+Q. Quality is the held-out negative
+log-likelihood per sample and dimension (NLL_norm, lower is better; see
+core.mfa.average_nll); the "no PCA" line is the MFA on the raw 300-d data.
 
 Test set: the Fourier curve of data/fourier_curve.py
 """
@@ -44,8 +44,10 @@ class Progress:
 
 
 # ------------ configuration ------------------
-C, H = 30, 1 # MFA components and latent dim
-DIMS = list(range(5, AMBIENT + 1, 5)) # PCA dimensions to sweep
+C, H = 50, 1 # MFA components and latent dim
+# PCA dimensions to sweep: coarse (every 5th) up to AMBIENT, plus a dense band
+# (every integer) around the signal dim 2M=20 where the tangent error drops steeply
+DIMS = sorted(set(range(5, AMBIENT + 1, 5)) | set(range(10, 31)))
 N_REPS = 5 # random repetitions per dim
 N_VAL = N # held-out validation samples (independent draw)
 MAX_FIT_RETRIES = 4
@@ -132,6 +134,7 @@ def _plot(dims, nll_without, nll_with, base_mean, base_std, D0):
     ax.axhline(base_mean, color="C3", ls="--", label=f"no PCA (D={D0})")
     ax.fill_between(dims, base_mean - base_std, base_mean + base_std,
                     color="C3", alpha=0.12)
+    ax.axvline(2 * M, color="grey", ls=":", lw=1, label=f"signal dim $2M={2 * M}$")
     ax.set_xlabel("PCA dimension $D$")
     ax.set_ylabel(r"$\mathrm{NLL}_{\mathrm{norm}}$ (validation)")
     ax.set_title("Density fit vs. PCA dimension")
@@ -146,7 +149,7 @@ def _plot(dims, nll_without, nll_with, base_mean, base_std, D0):
 def _summary(dims, nll_without, nll_with, base_mean):
     dims = np.asarray(dims)
     mw = np.nanmean(nll_with, axis=1)
-    print("\n--- summary (for thesis text) ---")
+    print("\n--- summary ---")
     print(f"best dim (min NLL, with Q):  D={dims[np.nanargmin(mw)]}")
     print(f"mean std with Q:    {np.nanmean(np.nanstd(nll_with, axis=1)):.4f}")
     print(f"mean std without Q: {np.nanmean(np.nanstd(nll_without, axis=1)):.4f}")

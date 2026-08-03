@@ -2,12 +2,12 @@
 Does reducing the PCA dimension improve the geometry of the MFA: how well its
 tangents match the true manifold tangents. And does the random transform Q help?
 
-We fit an MFA at 100 PCA dimensions (D = 5, 10, ..., 500), 5 times each, once on
-plain PCA and once PCA+Q, and measure the mean angle between estimated and true
-tangents.
+We fit an MFA across PCA dimensions D = 5..300 (dense near the optimum), 10 times
+each, once on plain PCA and once PCA+Q, and measure the mean angle between
+estimated and true tangents.
 Ground truth is a Fourier curve with known tangents (see data/fourier_curve.py).
-Its signal spans 2M = 40 dimensions, so the error is expected to bottom out
-near D = 40.
+Its signal spans 2M = 20 dimensions, so the error is expected to bottom out
+near D = 20.
 
 Note: The MFA means do not lie exactly on the curve, so the true tangent is taken
 at the nearest point of a densely sampled clean copy.
@@ -48,9 +48,11 @@ class Progress:
 
 
 # ------------ configuration ------------------
-C, H = 30, 1 # MFA components and latent dim
-DIMS = list(range(5, AMBIENT + 1, 5)) # PCA dimensions to sweep
-N_REPS = 5 # random repetitions per dim
+C, H = 50, 1 # MFA components and latent dim
+# PCA dimensions to sweep: coarse (every 5th) up to AMBIENT, plus a dense band
+# (every integer) around the signal dim 2M=20 where the tangent error drops steeply
+DIMS = sorted(set(range(5, AMBIENT + 1, 5)) | set(range(10, 31)))
+N_REPS = 10 # random repetitions per dim
 DENSE = 4000 # resolution of the clean curve used as ground truth
 MAX_FIT_RETRIES = 4
 
@@ -117,12 +119,13 @@ def main():
     dims = [d for d in DIMS if d <= AMBIENT]
     err_without = np.full((len(dims), N_REPS), np.nan)
     err_with = np.full((len(dims), N_REPS), np.nan)
+    base = np.full(N_REPS, np.nan)   # no-PCA: MFA on the raw ambient data
 
     print(f"dataset: Fourier curve, AMBIENT={AMBIENT}, N={N}, noise={NOISE}, "
           f"signal dim 2M={2 * M}")
 
-    # two fits per dim (without/with Q) per rep
-    prog = Progress(N_REPS * len(dims) * 2, step=0.05, label="tangent sweep")
+    # two fits per dim (without/with Q) plus one no-PCA baseline fit per rep
+    prog = Progress(N_REPS * (len(dims) * 2 + 1), step=0.05, label="tangent sweep")
 
     for r in range(N_REPS):
         X, dense = build_curve(curve_rng)
@@ -142,16 +145,20 @@ def main():
             Rq = comp @ Q
             err_with[i, r] = fit_error((X - mean) @ Rq, Rq, (dense - mean) @ Rq, tan_amb)
             prog.tick()
+
+        # no-PCA reference: MFA on the raw ambient data (original axes, no rotation)
+        base[r] = fit_error(X - mean, np.eye(AMBIENT), dense - mean, tan_amb)
+        prog.tick()
         print(f"  rep {r+1}/{N_REPS} done", flush=True)
 
     os.makedirs(os.path.dirname(RESULTS_NPZ), exist_ok=True)
     np.savez(RESULTS_NPZ, dims=dims, err_without=err_without, err_with=err_with,
-             M=M, ambient=AMBIENT, noise=NOISE, C=C)
-    _plot(dims, err_without, err_with)
-    _summary(dims, err_without, err_with)
+             baseline=base, M=M, ambient=AMBIENT, noise=NOISE, C=C)
+    _plot(dims, err_without, err_with, base)
+    _summary(dims, err_without, err_with, base)
 
 
-def _plot(dims, err_without, err_with):
+def _plot(dims, err_without, err_with, base):
     dims = np.asarray(dims)
     fig, ax = plt.subplots(figsize=(5.2, 3.6))
     for err, color, lab in [(err_without, "C0", "PCA only"),
@@ -159,6 +166,9 @@ def _plot(dims, err_without, err_with):
         m, s = np.nanmean(err, axis=1), np.nanstd(err, axis=1)
         ax.plot(dims, m, color=color, label=lab)
         ax.fill_between(dims, m - s, m + s, color=color, alpha=0.2)
+    bm, bs = np.nanmean(base), np.nanstd(base)
+    ax.axhline(bm, color="C3", ls="--", label=f"no PCA (D={AMBIENT})")
+    ax.fill_between(dims, bm - bs, bm + bs, color="C3", alpha=0.12)
     ax.axvline(2 * M, color="grey", ls=":", lw=1, label=f"signal dim $2M={2*M}$")
     ax.set_xlabel("PCA dimension $D$")
     ax.set_ylabel("mean tangent error (deg)")
@@ -171,12 +181,14 @@ def _plot(dims, err_without, err_with):
     print(f"saved {os.path.join(OUT_DIR, FIG)}")
 
 
-def _summary(dims, err_without, err_with):
+def _summary(dims, err_without, err_with, base):
     dims = np.asarray(dims)
     for err, lab in [(err_without, "without Q"), (err_with, "with Q")]:
         m = np.nanmean(err, axis=1)
         print(f"{lab:10s}: min {m.min():.2f} deg at D={dims[np.nanargmin(m)]}, "
-              f"no-PCA(D={dims[-1]}) {m[-1]:.2f} deg")
+              f"full-D(D={dims[-1]}) {m[-1]:.2f} deg")
+    print(f"no-PCA baseline (raw axes): {np.nanmean(base):.2f} "
+          f"+- {np.nanstd(base):.2f} deg")
 
 
 if __name__ == "__main__":

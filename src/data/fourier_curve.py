@@ -13,10 +13,10 @@ and perturbed by small isotropic noise.
 import numpy as np
 
 # ---------- dataset configuration (shared by both experiments) --------
-M = 20 # Fourier modes -> signal spans 2*M = 40 linear dimensions
-AMBIENT = 500 # ambient dimension the curve is embedded in
-N = 2000 # noisy sample points used to fit the MFA
-NOISE = 0.1 # std of the isotropic ambient noise on the samples
+M = 10 # Fourier modes -> signal spans 2*M = 20 linear dimensions
+AMBIENT = 300 # ambient dimension the curve is embedded in
+N = 4000 # noisy sample points used to fit the MFA
+NOISE = 0.15 # std of the isotropic ambient noise on the samples
 CURVE_SEED = 42 # shared seed for the curve RNG so both experiments use the same curves
 
 
