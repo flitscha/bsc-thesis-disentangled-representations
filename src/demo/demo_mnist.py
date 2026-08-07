@@ -83,6 +83,16 @@ class MNISTDemoTab:
         with dpg.child_window(width=300, border=True):
             _width = 150
 
+            dpg.add_text(
+                "Fits an MFA to rotated images of a digit, builds a "
+                "tangent-aware distance, and traces the rotation loop with the "
+                "naive graph traversal (a baseline to TDA). Two separate k-NN "
+                "graphs are used: one for the distance (Sec. 5.4), one for the "
+                "traversal (Sec. 5.5).",
+                wrap=280, color=[150, 150, 150],
+            )
+            dpg.add_spacer(height=8)
+
             # Data Section
             dpg.add_text("Data", color=[0, 255, 255])
             dpg.add_separator()
@@ -95,12 +105,48 @@ class MNISTDemoTab:
 
             dpg.add_spacer(height=10)
 
-            # Model Section
-            dpg.add_text("Model", color=[0, 255, 255])
+            # MFA Model Section
+            dpg.add_text("MFA model", color=[0, 255, 255])
             dpg.add_separator()
             self.n_comp_in = dpg.add_input_int(label="# components", default_value=24, width=_width)
-            self.k_in = dpg.add_input_int(label="k (graph)", default_value=2, width=_width)
             self.pca_dim_in = dpg.add_input_int(label="PCA dim (0=off)", default_value=20, width=_width)
+
+            dpg.add_spacer(height=10)
+
+            # Distance Section (Sec. 5.4)
+            dpg.add_text("Distance metric (Sec. 5.4)", color=[0, 255, 255])
+            dpg.add_separator()
+            self.lambda_in = dpg.add_input_float(
+                label="lambda (off-manifold penalty)", default_value=30.0, min_value=0.0, width=_width
+            )
+            with dpg.tooltip(self.lambda_in):
+                dpg.add_text(
+                    "Penalty for moving off the tangent space. 0 = plain "
+                    "Euclidean, larger stretches normal directions more.",
+                    wrap=260,
+                )
+            self.k_distance_in = dpg.add_input_int(label="k - distance graph", default_value=5, width=_width)
+            with dpg.tooltip(self.k_distance_in):
+                dpg.add_text(
+                    "Neighbors of the k-NN graph whose shortest paths give the "
+                    "geodesic distance (Sec. 5.4).",
+                    wrap=260,
+                )
+
+            dpg.add_spacer(height=10)
+
+            # Traversal Section (Sec. 5.5)
+            dpg.add_text("Traversal (Sec. 5.5)", color=[0, 255, 255])
+            dpg.add_separator()
+            self.k_traversal_in = dpg.add_input_int(label="k - traversal graph", default_value=2, width=_width)
+            with dpg.tooltip(self.k_traversal_in):
+                dpg.add_text(
+                    "Neighbors of the graph the naive baseline walks to order "
+                    "the loop. Usually 2 for a clean 1D loop (Sec. 5.5).",
+                    wrap=260,
+                )
+
+            dpg.add_spacer(height=10)
             dpg.add_button(label="Train + Build Spline", callback=self._train_threaded, width=-1)
             self.train_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
 
@@ -367,13 +413,14 @@ class MNISTDemoTab:
 
     def _train(self):
         C = dpg.get_value(self.n_comp_in)
-        k = dpg.get_value(self.k_in)
         pca_dim = dpg.get_value(self.pca_dim_in)
 
         exp = ManifoldPipeline(
             n_components=C, latent_dim=1, cov_type="mfa", shared=False,
             pca_dim=pca_dim if pca_dim > 0 else None,
-            detection="traversal", n_neighbors=k,
+            lambda_aniso=dpg.get_value(self.lambda_in),
+            n_neighbors=dpg.get_value(self.k_distance_in),
+            detection="traversal", traversal_k=dpg.get_value(self.k_traversal_in),
         )
         exp.fit(self.X.copy())
         self.exp = exp

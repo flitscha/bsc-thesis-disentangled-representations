@@ -80,7 +80,17 @@ class Manifold1DTab:
     def _build_settings_panel(self):
         _width = 150
         with dpg.child_window(width=400, autosize_y=True):
-            dpg.add_text("Daten")
+            dpg.add_text(
+                "Fits an MFA to a 1D manifold, builds a tangent-aware distance "
+                "from it, and traces the loop with the naive graph traversal "
+                "(a baseline to TDA). Two separate k-NN graphs are used, each "
+                "with its own k: one for the distance (Sec. 5.4), one for the "
+                "traversal (Sec. 5.5).",
+                wrap=380, color=[150, 150, 150],
+            )
+            dpg.add_separator()
+
+            dpg.add_text("Data")
             self.data_type = dpg.add_combo(
                 ("circle", "curve_in_3d"),
                 default_value="circle", label="Data", width=_width
@@ -93,13 +103,47 @@ class Manifold1DTab:
             )
 
             dpg.add_separator()
-            dpg.add_text("Modell")
+            dpg.add_text("MFA model")
             self.num_components = dpg.add_input_int(
-                label="Number of Components", default_value=15, min_value=1, width=_width
+                label="Number of components", default_value=15, min_value=1, width=_width
             )
-            self.k_neighbors = dpg.add_input_int(
-                label="k (neighbors for graph)", default_value=2, min_value=1, width=_width
+            self.pca_dim = dpg.add_input_int(
+                label="PCA dim (0 = off)", default_value=0, min_value=0, width=_width
             )
+
+            dpg.add_separator()
+            dpg.add_text("Distance metric (Sec. 5.4)")
+            self.lambda_aniso = dpg.add_input_float(
+                label="lambda (off-manifold penalty)", default_value=30.0,
+                min_value=0.0, width=_width,
+            )
+            with dpg.tooltip(self.lambda_aniso):
+                dpg.add_text(
+                    "Penalty for moving off the tangent space. 0 = plain "
+                    "Euclidean, larger stretches normal directions more.",
+                    wrap=260,
+                )
+            self.k_distance = dpg.add_input_int(
+                label="k - distance graph", default_value=5, min_value=1, width=_width
+            )
+            with dpg.tooltip(self.k_distance):
+                dpg.add_text(
+                    "Neighbors of the k-NN graph whose shortest paths give the "
+                    "geodesic distance (Sec. 5.4).",
+                    wrap=260,
+                )
+
+            dpg.add_separator()
+            dpg.add_text("Traversal (Sec. 5.5)")
+            self.k_traversal = dpg.add_input_int(
+                label="k - traversal graph", default_value=2, min_value=1, width=_width
+            )
+            with dpg.tooltip(self.k_traversal):
+                dpg.add_text(
+                    "Neighbors of the graph the naive baseline walks to order "
+                    "the loop. Usually 2 for a clean 1D loop (Sec. 5.5).",
+                    wrap=260,
+                )
 
             dpg.add_separator()
             dpg.add_button(label="Train", callback=self._on_train, width=-1)
@@ -162,7 +206,10 @@ class Manifold1DTab:
         self.pipe = ManifoldPipeline(
             n_components=dpg.get_value(self.num_components),
             latent_dim=1, cov_type="mfa", shared=False,
-            detection="traversal", n_neighbors=dpg.get_value(self.k_neighbors),
+            pca_dim=dpg.get_value(self.pca_dim) or None,
+            lambda_aniso=dpg.get_value(self.lambda_aniso),
+            n_neighbors=dpg.get_value(self.k_distance),
+            detection="traversal", traversal_k=dpg.get_value(self.k_traversal),
         )
         self.pipe.fit(self.data)
 

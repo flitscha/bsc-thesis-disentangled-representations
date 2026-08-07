@@ -89,6 +89,15 @@ class TopologyDemoTab:
     def _build_settings_panel(self):
         _width = 150
         with dpg.child_window(width=400, autosize_y=True):
+            dpg.add_text(
+                "Fits an MFA, builds a tangent-aware distance from it, and "
+                "detects connected components and loops with persistent homology "
+                "(TDA). Unlike the traversal baseline, TDA needs only the "
+                "distance graph (Sec. 5.4), so there is a single k here.",
+                wrap=380, color=[150, 150, 150],
+            )
+            dpg.add_separator()
+
             dpg.add_text("Data")
             self.data_type = dpg.add_combo(
                 list(DATASETS.keys()),
@@ -106,6 +115,54 @@ class TopologyDemoTab:
             self.num_components = dpg.add_input_int(
                 label="Number of components", default_value=25, min_value=3, width=_width,
             )
+            self.pca_dim = dpg.add_input_int(
+                label="PCA dim (0 = off)", default_value=0, min_value=0, width=_width,
+            )
+
+            dpg.add_separator()
+            dpg.add_text("Distance metric (Sec. 5.4)")
+            self.lambda_aniso = dpg.add_input_float(
+                label="lambda (off-manifold penalty)", default_value=30.0,
+                min_value=0.0, width=_width,
+            )
+            with dpg.tooltip(self.lambda_aniso):
+                dpg.add_text(
+                    "Penalty for moving off the tangent space. 0 = plain "
+                    "Euclidean, larger stretches normal directions more.",
+                    wrap=260,
+                )
+            self.k_distance = dpg.add_input_int(
+                label="k - distance graph", default_value=5, min_value=1, width=_width,
+            )
+            with dpg.tooltip(self.k_distance):
+                dpg.add_text(
+                    "Neighbors of the k-NN graph whose shortest paths give the "
+                    "geodesic distance (Sec. 5.4).",
+                    wrap=260,
+                )
+
+            dpg.add_separator()
+            dpg.add_text("TDA thresholds (Sec. 5.6)")
+            self.min_pers_h0 = dpg.add_input_float(
+                label="min persistence H0 (0 = auto)", default_value=0.0,
+                min_value=0.0, width=_width,
+            )
+            with dpg.tooltip(self.min_pers_h0):
+                dpg.add_text(
+                    "Minimum persistence for a connected component. 0 lets the "
+                    "detector pick a threshold automatically.",
+                    wrap=260,
+                )
+            self.min_pers_h1 = dpg.add_input_float(
+                label="min persistence H1 (0 = auto)", default_value=0.0,
+                min_value=0.0, width=_width,
+            )
+            with dpg.tooltip(self.min_pers_h1):
+                dpg.add_text(
+                    "Minimum persistence for a loop. 0 lets the detector pick a "
+                    "threshold automatically.",
+                    wrap=260,
+                )
 
             dpg.add_separator()
             dpg.add_button(label="Train + Analyze Topology", callback=self._on_train, width=-1)
@@ -172,10 +229,17 @@ class TopologyDemoTab:
 
         self.raw_data = data
 
+        h0 = dpg.get_value(self.min_pers_h0)
+        h1 = dpg.get_value(self.min_pers_h1)
         self.pipe = ManifoldPipeline(
             n_components=dpg.get_value(self.num_components),
             latent_dim=1, cov_type="mfa", shared=False,
+            pca_dim=dpg.get_value(self.pca_dim) or None,
+            lambda_aniso=dpg.get_value(self.lambda_aniso),
+            n_neighbors=dpg.get_value(self.k_distance),
             detection="tda",
+            min_persistence_h0=h0 if h0 > 0 else None,
+            min_persistence_h1=h1 if h1 > 0 else None,
         )
         self.pipe.fit(data)
 

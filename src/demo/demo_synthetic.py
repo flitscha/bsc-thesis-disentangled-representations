@@ -69,7 +69,16 @@ class SyntheticDemoTab:
     def _build_settings_panel(self):
         _width = 150
         with dpg.child_window(width=400, autosize_y=True):
-            dpg.add_text("Daten")
+            dpg.add_text(
+                "Fits a mixture model to a dataset and visualizes the "
+                "components and their tangent estimates. This tab explores the "
+                "fit itself (covariance type, number of components); it does "
+                "not run the distance or detection steps.",
+                wrap=380, color=[150, 150, 150],
+            )
+            dpg.add_separator()
+
+            dpg.add_text("Data")
             self.data_type = dpg.add_combo(
                 ("line", "circle", "swiss_roll", "torus", "curve_in_3d"),
                 default_value="circle", label="Data", width=_width
@@ -82,7 +91,7 @@ class SyntheticDemoTab:
             )
 
             dpg.add_separator()
-            dpg.add_text("Modell")
+            dpg.add_text("Model")
             self.cov_type = dpg.add_combo(
                 ("isotropic", "diagonal", "mfa", "full"),
                 default_value="mfa", label="Model", width=_width
@@ -99,7 +108,7 @@ class SyntheticDemoTab:
             dpg.add_button(label="Train", callback=self._on_train, width=-1)
 
             dpg.add_separator()
-            dpg.add_text("Visualisierung")
+            dpg.add_text("Visualization")
             self.draw_points = dpg.add_checkbox(
                 label="Draw Points", default_value=True, callback=self._on_viz_change,
             )
