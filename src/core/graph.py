@@ -1,124 +1,137 @@
 """
-Builds a weighted graph on the MFA Gaussian components,
-where edge weights reflect geodesic proximity along the manifold.
+Pipeline step §5.4: build a geodesic distance matrix over the MFA components.
+
+The distance approximates travel along the data manifold in two steps. First, a
+tangent-aware local metric assigns each pair of nearby components an edge length
+that penalizes moving off the estimated tangent spaces. Second, the geodesic
+distance between any two components is the shortest path in their k-nearest-
+neighbor graph, so paths follow the manifold instead of cutting across it.
 """
 
 import numpy as np
-from core.mfa import chart_overlap, direction_alignment
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import shortest_path
 
 
-# Score matrix
-def compute_score_matrix(
+def local_metric_matrix(
     means: np.ndarray,
     tangents: np.ndarray,
-    variances: np.ndarray = None,
-    w_overlap: float = 0.4,
-    w_direction: float = 0.4,
+    lambda_aniso: float,
 ) -> np.ndarray:
     """
-    Compute an (N, N) pairwise score matrix.
+    Symmetric (N, N) matrix of local edge lengths from the tangent-stretch metric.
 
-    Lower score = better neighbor candidate.
-
-    Score formula:
-        score(i,j) = dist(i,j) * (1 - w_overlap * overlap(i,j)
-                                     - w_direction * dir_align(i,j))
-
-    The two weights control the trade-off:
-      w_overlap   : reward components whose tangent frames agree
-      w_direction : reward components where the connecting vector
-                    lies along the manifold (not across it)
+    At component k with tangent projector P_k, a step d = mu_j - mu_k costs
+        l_k(d)^2 = ||d||^2 + lambda_aniso * ||d - P_k d||^2,
+    so the part of d that leaves the tangent space is penalized. The edge length
+    averages this over both endpoints.
 
     Parameters
     ----------
-    means       : (N, D)
-    tangents    : (N, D, n_tangents)
-    variances   : (N, n_tangents) or None
-        If given, components with high variance get a slight bonus
-    w_overlap   : float in [0, 0.5]
-    w_direction : float in [0, 0.5]
-        Note: w_overlap + w_direction should be <= 1.0
+    lambda_aniso : off-manifold penalty; 0 recovers Euclidean, larger stretches
+                   normal directions more.
+    """
+    means = np.asarray(means)
+    tangents = np.asarray(tangents)
+    N = means.shape[0]
+
+    diff = means[:, None, :] - means[None, :, :]   # (N, N, D), diff[k, j] = mu_k - mu_j
+    sq_dist = np.sum(diff ** 2, axis=-1)           # ||d||^2
+
+    # on-manifold part ||P_k d||^2 = ||T_k^T d||^2, one source component k per row
+    on_manifold = np.empty((N, N))
+    for k in range(N):
+        coords = diff[k] @ tangents[k]             # (N, H)
+        on_manifold[k] = np.sum(coords ** 2, axis=1)
+
+    off_manifold = sq_dist - on_manifold
+    length = np.sqrt(np.maximum(sq_dist + lambda_aniso * off_manifold, 0.0))
+
+    return 0.5 * (length + length.T)               # symmetrize over both endpoints
+
+
+def _neighbor_graph(length: np.ndarray, n_neighbors: int) -> csr_matrix:
+    """
+    Sparse k-nearest-neighbor graph from a pairwise length matrix. An edge is
+    kept if either endpoint is among the other's `n_neighbors` nearest.
+    """
+    N = length.shape[0]
+    n_neighbors = min(n_neighbors, N - 1)
+
+    adjacency = np.zeros((N, N))
+    for i in range(N):
+        row = length[i].copy()
+        row[i] = np.inf
+        nn = np.argsort(row)[:n_neighbors]
+        adjacency[i, nn] = length[i, nn]
+
+    return csr_matrix(np.maximum(adjacency, adjacency.T))  # union -> symmetric
+
+
+def riemannian_distance_matrix(
+    means: np.ndarray,
+    tangents: np.ndarray,
+    lambda_aniso: float = 30.0,
+    n_neighbors: int = 5,
+) -> np.ndarray:
+    """
+    Geodesic distance matrix over the MFA components (thesis §5.4).
+
+    Local edge lengths come from the tangent-stretch metric, and distances are
+    shortest paths in the resulting k-nearest-neighbor graph. The result is a
+    proper metric (the triangle inequality holds by construction) and does not
+    short-circuit loops, which the downstream topological analysis relies on.
 
     Returns
     -------
-    score_matrix : (N, N), non-negative floats, diagonal = 0
+    distances : (N, N), non-negative, symmetric, zero diagonal.
     """
-    N = means.shape[0]
+    length = local_metric_matrix(means, tangents, lambda_aniso)
+    graph = _neighbor_graph(length, n_neighbors)
+    distances = shortest_path(graph, method="D", directed=False)
 
-    # Euclidean distance matrix (vectorized)
-    diff = means[:, None, :] - means[None, :, :]  # (N, N, D)
-    dist = np.linalg.norm(diff, axis=-1)  # (N, N)
+    # A disconnected graph leaves some pairs unreachable (inf). Keep them finite
+    # but far beyond any real distance so they stay separate in the analysis.
+    if not np.isfinite(distances).all():
+        finite_max = distances[np.isfinite(distances)].max()
+        distances[~np.isfinite(distances)] = 2.0 * finite_max
 
-    # Chart overlap and direction alignment
-    overlap = np.zeros((N, N))
-    dir_align = np.zeros((N, N))
-
-    for i in range(N):
-        for j in range(i + 1, N):
-            ov = chart_overlap(tangents[i], tangents[j])
-            da = direction_alignment(means[i], means[j], tangents[i], tangents[j])
-            overlap[i, j] = overlap[j, i] = ov
-            dir_align[i, j] = dir_align[j, i] = da
-
-    # variance-based confidence weighting
-    if variances is not None:
-        # confidence[i] = mean tangent variance, normalized to [0.5, 1.0]
-        conf = variances.mean(axis=1)
-        conf = 0.5 + 0.5 * (conf - conf.min()) / (conf.max() - conf.min() + 1e-12)
-        # geometric mean of confidence for each pair
-        conf_matrix = np.sqrt(conf[:, None] * conf[None, :])
-    else:
-        conf_matrix = np.ones((N, N))
-
-    score = dist * (1.0 - w_overlap * overlap - w_direction * dir_align)
-    score = score / (conf_matrix + 1e-12)
-
-    np.fill_diagonal(score, 0.0)
-    return score
+    np.fill_diagonal(distances, 0.0)
+    return distances
 
 
 def euclidean_distance_matrix(means: np.ndarray) -> np.ndarray:
     """
-    Plain pairwise Euclidean distance between component means.
-
-    An alternative to the geometry-aware score matrix. The score matrix
-    penalizes disagreeing tangent frames, which can artificially inflate the
-    distance between spatially close components (e.g. near-isotropic components
-    in high-curvature regions, where the dominant tangent direction is poorly
-    defined) and thereby fragment a connected region into spurious components.
+    Plain pairwise Euclidean distance between component means. A baseline for
+    the geodesic distance above, ignoring the tangent geometry entirely.
     """
     diff = means[:, None, :] - means[None, :, :]
     return np.linalg.norm(diff, axis=-1)
 
 
 # Graph construction
-def build_knn_graph(score_matrix: np.ndarray, k: int = 2) -> dict:
+def build_knn_graph(distance_matrix: np.ndarray, k: int = 2) -> dict:
     """
-    Build an undirected k-NN graph from the score matrix.
-
-    Parameters
-    ----------
-    score_matrix : (N, N)
-    k            : int, number of neighbors per node
+    Build an undirected k-NN graph from a distance matrix.
 
     Returns
     -------
     graph : dict with keys:
-        'adjacency' : (N, N) float array (score value or 0)
+        'adjacency' : (N, N) float array (distance value or 0)
         'edges'     : list of (i, j) tuples, i < j
         'degrees'   : (N,) int array
     """
-    N = score_matrix.shape[0]
+    N = distance_matrix.shape[0]
     adjacency = np.zeros((N, N), dtype=float)
 
     for i in range(N):
-        # exclude self (score=0 on diagonal)
-        row = score_matrix[i].copy()
+        # exclude self (distance = 0 on diagonal)
+        row = distance_matrix[i].copy()
         row[i] = np.inf
         neighbors = np.argsort(row)[:k]
         for j in neighbors:
-            adjacency[i, j] = score_matrix[i, j]
-            adjacency[j, i] = score_matrix[i, j]
+            adjacency[i, j] = distance_matrix[i, j]
+            adjacency[j, i] = distance_matrix[i, j]
 
     edges = [
         (i, j)

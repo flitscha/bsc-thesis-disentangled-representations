@@ -1,5 +1,5 @@
 """
-High-level manifold-learning pipeline (thesis §3.2-§3.7).
+High-level manifold-learning pipeline (thesis §5.2-§5.7).
 
 'ManifoldPipeline' wraps the individual pipeline steps behind one object that
 operates on a plain numpy array X, so it is usable independently of the demos.
@@ -7,25 +7,25 @@ operates on a plain numpy array X, so it is usable independently of the demos.
 Two levels of granularity are available:
 
   Convenience (coarse):
-      pipe.fit(X)          # §3.2 preprocessing + §3.3 MFA / tangent frames
-      pipe.detect()        # §3.4 distances + §3.5/6 detection + §3.7 splines
+      pipe.fit(X)          # §5.2 preprocessing + §5.3 MFA / tangent frames
+      pipe.detect()        # §5.4 distances + §5.5/6 detection + §5.7 splines
       pipe.fit_detect(X)
 
   Fine-grained (run / inspect one step at a time; each enriches the object):
-      X_red = pipe.preprocess(X)     # §3.2  -> .pre
-      pipe.fit_model(X_red)          # §3.3  -> .model, .tangents, .variances
-      D = pipe.distance_matrix()     # §3.4  -> .distances_
-      pipe.detect_structure()        # §3.5/6 -> .structure_, .curves_ (orders)
-      pipe.interpolate()             # §3.7  -> .curves_ (with splines)
+      X_red = pipe.preprocess(X)     # §5.2  -> .pre
+      pipe.fit_model(X_red)          # §5.3  -> .model, .tangents, .variances
+      D = pipe.distance_matrix()     # §5.4  -> .distances_
+      pipe.detect_structure()        # §5.5/6 -> .structure_, .curves_ (orders)
+      pipe.interpolate()             # §5.7  -> .curves_ (with splines)
 
 Hyperparameters are set in the constructor but stay mutable (set_params /
 get_params). They are grouped by the step they feed, so the "what do I re-run
 after changing this?" rule lines up with the fine-grained methods:
 
-    PCA (§3.2)         : pca_dim                                    -> preprocess()
-    MFA (§3.3)         : n_components, latent_dim, cov_type, shared -> fit_model()
-    distance (§3.4)    : w_overlap, w_direction                    -> distance_matrix()
-    detection (§3.5/6) : detection, n_neighbors, + TDA thresholds  -> detect_structure()
+    PCA (§5.2)         : pca_dim                                    -> preprocess()
+    MFA (§5.3)         : n_components, latent_dim, cov_type, shared -> fit_model()
+    distance (§5.4)    : lambda_aniso, n_neighbors                 -> distance_matrix()
+    detection (§5.5/6) : detection, traversal_k, + TDA thresholds  -> detect_structure()
     seed               : feeds preprocess() and fit_model()        -> full re-fit
 
 Changing a parameter means re-running from its step onward. The convenience
@@ -37,7 +37,7 @@ import numpy as np
 
 from core.preprocessing import PCARotation
 from core.mfa import fit_mfa, extract_tangent_frame
-from core.graph import compute_score_matrix
+from core.graph import riemannian_distance_matrix
 from core.tda import detect_tda
 from core.traversal import detect_traversal
 from core.interpolation import interpolate_curves
@@ -47,10 +47,10 @@ class ManifoldPipeline:
 
     # Hyperparameters grouped by the step they feed. Changing one means
     # re-running from that step onward (see module docstring).
-    _PCA_PARAMS = ("pca_dim",)                                          # -> preprocess()  §3.2
-    _MFA_PARAMS = ("n_components", "latent_dim", "cov_type", "shared")  # -> fit_model()  §3.3
-    _DISTANCE_PARAMS = ("w_overlap", "w_direction")                    # -> distance_matrix()  §3.4
-    _DETECT_PARAMS = ("detection", "n_neighbors")                      # -> detect_structure()  §3.5/6
+    _PCA_PARAMS = ("pca_dim",)                                          # -> preprocess()  §5.2
+    _MFA_PARAMS = ("n_components", "latent_dim", "cov_type", "shared")  # -> fit_model()  §5.3
+    _DISTANCE_PARAMS = ("lambda_aniso", "n_neighbors")                 # -> distance_matrix()  §5.4
+    _DETECT_PARAMS = ("detection", "traversal_k")                      # -> detect_structure()  §5.5/6
     # `seed` feeds preprocess() and fit_model() -> full re-fit when changed
     _PARAMS = _PCA_PARAMS + _MFA_PARAMS + ("seed",) + _DISTANCE_PARAMS + _DETECT_PARAMS
 
@@ -62,28 +62,28 @@ class ManifoldPipeline:
         cov_type="mfa",
         shared=False,
         detection="tda",
-        n_neighbors=2,
-        w_overlap=0.4,
-        w_direction=0.4,
+        lambda_aniso=30.0,
+        n_neighbors=5,
+        traversal_k=2,
         seed=None,
         **detect_kwargs,
     ):
-        # --- PCA parameter (§3.2) ---
+        # --- PCA parameter (§5.2) ---
         self.pca_dim = pca_dim if (pca_dim and pca_dim > 0) else None
 
-        # --- MFA parameters (§3.3) ---
+        # --- MFA parameters (§5.3) ---
         self.n_components = n_components
         self.latent_dim = latent_dim
         self.cov_type = cov_type
         self.shared = shared
 
-        # --- distance parameters (§3.4) ---
-        self.w_overlap = w_overlap
-        self.w_direction = w_direction
+        # --- distance parameters (§5.4) ---
+        self.lambda_aniso = lambda_aniso   # off-manifold penalty of the local metric
+        self.n_neighbors = n_neighbors     # neighbors of the geodesic graph
 
-        # --- detection parameters (§3.5/6) ---
+        # --- detection parameters (§5.5/6) ---
         self.detection = detection
-        self.n_neighbors = n_neighbors
+        self.traversal_k = traversal_k    # neighbors of the traversal baseline graph
         # extra kwargs forwarded to the TDA detector (min_persistence_h0/h1,
         # auto_ratio_h1)
         self.detect_kwargs = dict(detect_kwargs)
@@ -98,8 +98,8 @@ class ManifoldPipeline:
         self.variances = None    # (C, latent_dim) captured variance per direction
         self.noise_ = None       # (C,) mean off-manifold noise variance
         self.obj = None          # final training objective
-        self.distances_ = None   # (C, C) distance matrix (§3.4)
-        self.structure_ = None   # raw detection result (index orders, §3.5/6)
+        self.distances_ = None   # (C, C) distance matrix (§5.4)
+        self.structure_ = None   # raw detection result (index orders, §5.5/6)
         self.curves_ = None      # detected curves (with splines after interpolate)
 
     # ------------------------------------------------------------------
@@ -121,7 +121,7 @@ class ManifoldPipeline:
         return self
 
     # ------------------------------------------------------------------
-    # §3.2 preprocessing
+    # §5.2 preprocessing
     # ------------------------------------------------------------------
     def preprocess(self, X):
         """Apply PCA + random orthogonal transform; return the reduced data."""
@@ -133,7 +133,7 @@ class ManifoldPipeline:
         return X
 
     # ------------------------------------------------------------------
-    # §3.3 MFA as local geometry learner
+    # §5.3 MFA as local geometry learner
     # ------------------------------------------------------------------
     def fit_model(self, X):
         """Fit the MFA on (already preprocessed) data and extract tangent frames."""
@@ -154,20 +154,20 @@ class ManifoldPipeline:
         return self.fit_model(self.preprocess(X))
 
     # ------------------------------------------------------------------
-    # §3.4 distance matrix
+    # §5.4 distance matrix
     # ------------------------------------------------------------------
     def distance_matrix(self):
         """Build and cache the geometry-aware distance matrix between components."""
         if self.model is None:
             raise RuntimeError("call fit() before distance_matrix().")
-        self.distances_ = compute_score_matrix(
-            self.model.means, self.tangents, self.variances,
-            w_overlap=self.w_overlap, w_direction=self.w_direction,
+        self.distances_ = riemannian_distance_matrix(
+            self.model.means, self.tangents,
+            lambda_aniso=self.lambda_aniso, n_neighbors=self.n_neighbors,
         )
         return self.distances_
 
     # ------------------------------------------------------------------
-    # §3.5 / §3.6 structure detection (index orders, no splines)
+    # §5.5 / §5.6 structure detection (index orders, no splines)
     # ------------------------------------------------------------------
     def detect_structure(self, **overrides):
         """
@@ -185,7 +185,7 @@ class ManifoldPipeline:
             kwargs = {**self.detect_kwargs, **overrides}
             self.structure_ = detect_tda(self.distances_, **kwargs)
         elif self.detection == "traversal":
-            self.structure_ = detect_traversal(self.distances_, k=self.n_neighbors)
+            self.structure_ = detect_traversal(self.distances_, k=self.traversal_k)
         else:
             raise ValueError(f"unknown detection method '{self.detection}'")
 
@@ -194,7 +194,7 @@ class ManifoldPipeline:
         return self.structure_
 
     # ------------------------------------------------------------------
-    # §3.7 interpolation
+    # §5.7 interpolation
     # ------------------------------------------------------------------
     def interpolate(self):
         """Attach cubic splines to the detected curves."""
@@ -204,7 +204,7 @@ class ManifoldPipeline:
         return self.curves_
 
     # ------------------------------------------------------------------
-    # convenience: full detection (§3.4 -> §3.7)
+    # convenience: full detection (§5.4 -> §5.7)
     # ------------------------------------------------------------------
     def detect(self, **overrides):
         """
