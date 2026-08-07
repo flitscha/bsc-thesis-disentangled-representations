@@ -1,10 +1,10 @@
 """
-Pipeline step §3.6: loop and connected-component detection via topological data
+Pipeline step §5.6: loop and connected-component detection via topological data
 analysis (persistent homology, gudhi).
 
-Operates on a precomputed distance matrix (built in §3.4, see graph.py) and
+Operates on a precomputed distance matrix (built in §5.4, see graph.py) and
 returns the detected structure as index orders -- interpolation into splines
-(§3.7) is a separate step (see interpolation.interpolate_curves).
+(§5.7) is a separate step (see interpolation.interpolate_curves).
 """
 
 import numpy as np
@@ -143,7 +143,7 @@ def detect_tda(
     Parameters
     ----------
     distance_matrix : (N, N) array
-        Pairwise distances between the MFA components (built in §3.4).
+        Pairwise distances between the MFA components (built in §5.4).
     min_persistence_h0, min_persistence_h1 : float or None
         Persistence thresholds; None uses an automatic heuristic.
     auto_ratio_h1 : float

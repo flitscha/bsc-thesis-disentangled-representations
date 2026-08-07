@@ -1,5 +1,5 @@
 """
-Pipeline step 1 (thesis §3.2): dimensionality reduction by PCA followed by a
+Pipeline step 1 (thesis §5.2): dimensionality reduction by PCA followed by a
 random orthogonal transformation.
 
 Standard PCA aligns the coordinate axes with the principal directions of the
@@ -41,7 +41,7 @@ def random_orthogonal(dim: int, rng=None) -> np.ndarray:
 class PCARotation:
     """
     PCA projection onto ``n_components`` dimensions followed by a random
-    orthogonal transformation (thesis §3.2).
+    orthogonal transformation (thesis §5.2).
 
     Follows the sklearn-style fit / transform / inverse_transform convention so
     the same fitted transform can be applied to a separate validation set.

@@ -1,8 +1,8 @@
 """
-Pipeline step §3.5: naive loop detection by greedy graph traversal (baseline).
+Pipeline step §5.5: naive loop detection by greedy graph traversal (baseline).
 
-Builds a k-NN graph from a precomputed distance matrix (§3.4) and greedily
-traverses it into a single closed loop. Interpolation into a spline (§3.7) is a
+Builds a k-NN graph from a precomputed distance matrix (§5.4) and greedily
+traverses it into a single closed loop. Interpolation into a spline (§5.7) is a
 separate step (see interpolation.interpolate_curves).
 """
 

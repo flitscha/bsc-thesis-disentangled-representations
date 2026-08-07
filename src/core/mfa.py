@@ -1,5 +1,5 @@
 """
-Pipeline step 2 (thesis §3.3): fit a Mixture of Factor Analyzers (MFA) and
+Pipeline step 2 (thesis §5.3): fit a Mixture of Factor Analyzers (MFA) and
 interpret it as a local geometry learner.
 
 The MFA is fitted as a density model, but its factor loading matrices W_k are
@@ -110,7 +110,7 @@ def mfa_log_likelihood(model, X):
 def average_nll(model, X, per_dim=True):
     """
     Average negative log-likelihood of the model on `X`, optionally normalized
-    by the ambient dimension (thesis §3.2, NLL_norm).
+    by the ambient dimension (thesis §5.2, NLL_norm).
 
     NLL_norm = -1 / (N * D) * sum_n log p_Theta(x_n)
 

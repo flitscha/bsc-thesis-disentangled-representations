@@ -1,6 +1,6 @@
 """
 Multi-frequency Fourier curve, the shared synthetic test dataset for the two
-PCA-preprocessing experiments (thesis §3.2):
+PCA-preprocessing experiments (thesis §5.2):
 
 - `experiments/pca_preprocessing.py` measures density fit (NLL_norm),
 - `experiments/tangent_alignment.py` measures geometry (tangent error).

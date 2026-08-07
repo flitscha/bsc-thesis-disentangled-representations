@@ -1,7 +1,7 @@
 """
-Pipeline step §3.7: interpolate the detected 1D structures with cubic splines.
+Pipeline step §5.7: interpolate the detected 1D structures with cubic splines.
 
-`interpolate_curves` turns index orders (from §3.5/§3.6) plus the component
+`interpolate_curves` turns index orders (from §5.5/§5.6) plus the component
 means into smooth spline parametrizations: closed splines for loops, open
 splines for paths.
 """
