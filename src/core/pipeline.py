@@ -25,7 +25,7 @@ after changing this?" rule lines up with the fine-grained methods:
     PCA (§5.2)         : pca_dim                                    -> preprocess()
     MFA (§5.3)         : n_components, latent_dim, cov_type, shared -> fit_model()
     distance (§5.4)    : lambda_aniso, n_neighbors                 -> distance_matrix()
-    detection (§5.5/6) : detection, traversal_k, + TDA thresholds  -> detect_structure()
+    detection (§5.5/6) : detection, + TDA thresholds / `closed`     -> detect_structure()
     seed               : feeds preprocess() and fit_model()        -> full re-fit
 
 Changing a parameter means re-running from its step onward. The convenience
@@ -37,9 +37,9 @@ import numpy as np
 
 from core.preprocessing import PCARotation
 from core.mfa import fit_mfa, extract_tangent_frame
-from core.graph import riemannian_distance_matrix
+from core.graph import riemannian_distance_matrix, prune_low_weight_components
 from core.tda import detect_tda
-from core.traversal import detect_traversal
+from core.ordering import detect_traversal
 from core.interpolation import interpolate_curves
 
 
@@ -50,7 +50,7 @@ class ManifoldPipeline:
     _PCA_PARAMS = ("pca_dim",)                                          # -> preprocess()  §5.2
     _MFA_PARAMS = ("n_components", "latent_dim", "cov_type", "shared")  # -> fit_model()  §5.3
     _DISTANCE_PARAMS = ("lambda_aniso", "n_neighbors")                 # -> distance_matrix()  §5.4
-    _DETECT_PARAMS = ("detection", "traversal_k")                      # -> detect_structure()  §5.5/6
+    _DETECT_PARAMS = ("detection",)                                    # -> detect_structure()  §5.5/6
     # `seed` feeds preprocess() and fit_model() -> full re-fit when changed
     _PARAMS = _PCA_PARAMS + _MFA_PARAMS + ("seed",) + _DISTANCE_PARAMS + _DETECT_PARAMS
 
@@ -64,7 +64,6 @@ class ManifoldPipeline:
         detection="tda",
         lambda_aniso=30.0,
         n_neighbors=5,
-        traversal_k=2,
         seed=None,
         **detect_kwargs,
     ):
@@ -83,9 +82,8 @@ class ManifoldPipeline:
 
         # --- detection parameters (§5.5/6) ---
         self.detection = detection
-        self.traversal_k = traversal_k    # neighbors of the traversal baseline graph
-        # extra kwargs forwarded to the TDA detector (min_persistence_h0/h1,
-        # auto_ratio_h1)
+        # extra kwargs: TDA thresholds (min_persistence_h0/h1, auto_ratio_h1) or
+        # the traversal baseline's `closed` override
         self.detect_kwargs = dict(detect_kwargs)
 
         # --- reproducibility (feeds preprocess + fit_model) ---
@@ -98,7 +96,8 @@ class ManifoldPipeline:
         self.variances = None    # (C, latent_dim) captured variance per direction
         self.noise_ = None       # (C,) mean off-manifold noise variance
         self.obj = None          # final training objective
-        self.distances_ = None   # (C, C) distance matrix (§5.4)
+        self.kept_ = None        # original indices of the charts kept after pruning
+        self.distances_ = None   # (M, M) distance matrix over the kept charts (§5.4)
         self.structure_ = None   # raw detection result (index orders, §5.5/6)
         self.curves_ = None      # detected curves (with splines after interpolate)
 
@@ -157,11 +156,16 @@ class ManifoldPipeline:
     # §5.4 distance matrix
     # ------------------------------------------------------------------
     def distance_matrix(self):
-        """Build and cache the geometry-aware distance matrix between components."""
+        """Build and cache the geometry-aware distance matrix between components.
+
+        Near-empty charts (negligible mixing weight pi_k) are pruned first, so
+        they cannot create shortcut edges or spurious topology.
+        """
         if self.model is None:
             raise RuntimeError("call fit() before distance_matrix().")
+        self.kept_ = prune_low_weight_components(self.model.prior)
         self.distances_ = riemannian_distance_matrix(
-            self.model.means, self.tangents,
+            self.model.means[self.kept_], self.tangents[self.kept_],
             lambda_aniso=self.lambda_aniso, n_neighbors=self.n_neighbors,
         )
         return self.distances_
@@ -183,15 +187,39 @@ class ManifoldPipeline:
 
         if self.detection == "tda":
             kwargs = {**self.detect_kwargs, **overrides}
+            kwargs.pop("closed", None)  # traversal-only override, not a TDA param
             self.structure_ = detect_tda(self.distances_, **kwargs)
         elif self.detection == "traversal":
-            self.structure_ = detect_traversal(self.distances_, k=self.traversal_k)
+            closed = {**self.detect_kwargs, **overrides}.get("closed")
+            self.structure_ = detect_traversal(self.distances_, closed=closed)
         else:
             raise ValueError(f"unknown detection method '{self.detection}'")
 
+        self._lift_indices_to_original()
         self.structure_["method"] = self.detection
         self.curves_ = self.structure_["curves"]
         return self.structure_
+
+    def _lift_indices_to_original(self):
+        """
+        Map detection indices back to the original component indices via 'self.kept_'
+        """
+        kept = self.kept_
+        N = self.model.means.shape[0]
+
+        for curve in self.structure_["curves"]:
+            curve["order"] = [int(kept[i]) for i in curve["order"]]
+
+        # per-node component labels: scatter back to full length, -1 = pruned
+        if "components" in self.structure_:
+            full = np.full(N, -1, dtype=int)
+            full[kept] = self.structure_["components"]
+            self.structure_["components"] = full
+
+        # traversal baseline exposes a k-NN graph whose edges are node indices
+        graph = self.structure_.get("graph")
+        if graph is not None and "edges" in graph:
+            graph["edges"] = [(int(kept[i]), int(kept[j])) for i, j in graph["edges"]]
 
     # ------------------------------------------------------------------
     # §5.7 interpolation

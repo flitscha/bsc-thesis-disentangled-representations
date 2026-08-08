@@ -134,18 +134,6 @@ class Manifold1DTab:
                 )
 
             dpg.add_separator()
-            dpg.add_text("Traversal (Sec. 5.5)")
-            self.k_traversal = dpg.add_input_int(
-                label="k - traversal graph", default_value=2, min_value=1, width=_width
-            )
-            with dpg.tooltip(self.k_traversal):
-                dpg.add_text(
-                    "Neighbors of the graph the naive baseline walks to order "
-                    "the loop. Usually 2 for a clean 1D loop (Sec. 5.5).",
-                    wrap=260,
-                )
-
-            dpg.add_separator()
             dpg.add_button(label="Train", callback=self._on_train, width=-1)
 
             dpg.add_separator()
@@ -209,7 +197,7 @@ class Manifold1DTab:
             pca_dim=dpg.get_value(self.pca_dim) or None,
             lambda_aniso=dpg.get_value(self.lambda_aniso),
             n_neighbors=dpg.get_value(self.k_distance),
-            detection="traversal", traversal_k=dpg.get_value(self.k_traversal),
+            detection="traversal",
         )
         self.pipe.fit(self.data)
 

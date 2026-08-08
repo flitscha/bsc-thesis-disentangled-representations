@@ -135,17 +135,6 @@ class MNISTDemoTab:
 
             dpg.add_spacer(height=10)
 
-            # Traversal Section (Sec. 5.5)
-            dpg.add_text("Traversal (Sec. 5.5)", color=[0, 255, 255])
-            dpg.add_separator()
-            self.k_traversal_in = dpg.add_input_int(label="k - traversal graph", default_value=2, width=_width)
-            with dpg.tooltip(self.k_traversal_in):
-                dpg.add_text(
-                    "Neighbors of the graph the naive baseline walks to order "
-                    "the loop. Usually 2 for a clean 1D loop (Sec. 5.5).",
-                    wrap=260,
-                )
-
             dpg.add_spacer(height=10)
             dpg.add_button(label="Train + Build Spline", callback=self._train_threaded, width=-1)
             self.train_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
@@ -420,7 +409,7 @@ class MNISTDemoTab:
             pca_dim=pca_dim if pca_dim > 0 else None,
             lambda_aniso=dpg.get_value(self.lambda_in),
             n_neighbors=dpg.get_value(self.k_distance_in),
-            detection="traversal", traversal_k=dpg.get_value(self.k_traversal_in),
+            detection="traversal",
         )
         exp.fit(self.X.copy())
         self.exp = exp

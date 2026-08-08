@@ -10,9 +10,11 @@ returns the detected structure as index orders -- interpolation into splines
 import numpy as np
 import gudhi
 from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import dijkstra, minimum_spanning_tree
+from scipy.sparse.csgraph import dijkstra
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
+
+from core.ordering import order_along_path
 
 
 def compute_persistence(distance_matrix, max_dimension=1, max_edge_length=None):
@@ -95,43 +97,6 @@ def extract_loop(distance_matrix, birth_edge, birth_scale):
     return path
 
 
-def extract_path(distance_matrix, node_indices):
-    """
-    Order the points of a loop-free (path-shaped) component along its
-    intrinsic 1D structure via the diameter of its minimum spanning tree
-    (standard two-sweep algorithm: farthest node from an arbitrary start,
-    then farthest node from that -- the path between those two endpoints
-    is the tree's diameter and gives a natural traversal order).
-
-    Parameters
-    ----------
-    distance_matrix : (N, N) full distance matrix
-    node_indices     : indices (into distance_matrix) belonging to this component
-
-    Returns
-    -------
-    order : list of global vertex indices, ordered along the path
-    """
-    sub_D = distance_matrix[np.ix_(node_indices, node_indices)]
-    mst = minimum_spanning_tree(csr_matrix(sub_D))
-    mst = mst.maximum(mst.T)  # symmetrize
-
-    dist0, _ = dijkstra(mst, directed=False, indices=0, return_predecessors=True)
-    far0 = int(np.argmax(dist0))
-
-    dist1, predecessors = dijkstra(mst, directed=False, indices=far0, return_predecessors=True)
-    far1 = int(np.argmax(dist1))
-
-    path_local = [far1]
-    cur = far1
-    while cur != far0:
-        cur = predecessors[cur]
-        path_local.append(cur)
-    path_local.reverse()
-
-    return [int(node_indices[i]) for i in path_local]
-
-
 def detect_tda(
     distance_matrix, min_persistence_h0=None, min_persistence_h1=None,
     auto_ratio_h1=0.1,
@@ -198,7 +163,7 @@ def detect_tda(
         node_idx = np.where(components == c)[0]
         if len(node_idx) < 2:
             continue
-        order = extract_path(D, node_idx)
+        order = order_along_path(D, node_idx)
         curves.append({
             "type": "path", "component": c, "order": order,
         })
