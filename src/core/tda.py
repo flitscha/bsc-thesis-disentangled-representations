@@ -64,6 +64,13 @@ def _h0_num_components(diagram, gap_factor):
 
 
 def extract_components(distance_matrix, n_components):
+    """
+    Assign each node a connected-component label (0 .. n_components-1).
+
+    Single-linkage clustering is exactly the H0 filtration of the Rips complex
+    (its merge scales are the H0 deaths), so we cut its dendrogram into the
+    n_components clusters that persistent homology already told us to expect.
+    """
     condensed = squareform(distance_matrix, checks=False)
     Z = linkage(condensed, method="single")
     labels = fcluster(Z, t=n_components, criterion="maxclust")
