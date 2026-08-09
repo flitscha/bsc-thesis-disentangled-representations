@@ -19,7 +19,7 @@ from scipy.sparse.csgraph import minimum_spanning_tree, dijkstra
 
 # An ordered path is treated as closed when the gap between its two endpoints is
 # no larger than this multiple of the typical consecutive step. 
-_LOOP_CLOSURE_RATIO = 2.0
+_LOOP_CLOSURE_RATIO = 3.0
 
 
 def _mst(distance_matrix: np.ndarray, node_indices: np.ndarray):

@@ -82,8 +82,8 @@ class ManifoldPipeline:
 
         # --- detection parameters (§5.5/6) ---
         self.detection = detection
-        # extra kwargs: TDA thresholds (min_persistence_h0/h1, auto_ratio_h1) or
-        # the traversal baseline's `closed` override
+        # extra kwargs: TDA thresholds (min_persistence_h0/h1, component_gap_factor_h0,
+        # prominence_ratio_h1) or the traversal baseline's `closed` override
         self.detect_kwargs = dict(detect_kwargs)
 
         # --- reproducibility (feeds preprocess + fit_model) ---
