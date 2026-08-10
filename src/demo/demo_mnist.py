@@ -80,15 +80,15 @@ class MNISTDemoTab:
 
 
     def _build_settings_panel(self):
-        with dpg.child_window(width=300, border=True):
-            _width = 150
+        with dpg.child_window(width=320, border=True):
+            _width = 125
 
             dpg.add_text(
                 "Fits an MFA to rotated images of a digit, builds a "
-                "tangent-aware distance, and traces the rotation loop with the "
-                "naive graph traversal (a baseline to TDA). Two separate k-NN "
-                "graphs are used: one for the distance (Sec. 5.4), one for the "
-                "traversal (Sec. 5.5).",
+                "tangent-aware distance (Sec. 5.4), and traces the rotation loop "
+                "with the selected detection method: persistent homology (TDA, "
+                "Sec. 5.6) or the naive MST-diameter traversal baseline "
+                "(Sec. 5.5).",
                 wrap=280, color=[150, 150, 150],
             )
             dpg.add_spacer(height=8)
@@ -100,6 +100,14 @@ class MNISTDemoTab:
                 label="Digit (0-9)", default_value=3, min_value=0, max_value=9, width=_width
             )
             self.n_angles_in = dpg.add_input_int(label="Number of samples", default_value=360, width=_width)
+            self.noise_in = dpg.add_input_float(
+                label="Pixel noise (std)", default_value=0.0, min_value=0.0, step=0.01, width=_width
+            )
+            with dpg.tooltip(self.noise_in):
+                dpg.add_text(
+                    "Std of uniform per-pixel, per-image Gaussian noise",
+                    wrap=260,
+                )
             dpg.add_button(label="Generate Data", callback=self._generate_data, width=-1)
             self.data_lbl = dpg.add_text("-", color=[150, 150, 150])
 
@@ -110,6 +118,13 @@ class MNISTDemoTab:
             dpg.add_separator()
             self.n_comp_in = dpg.add_input_int(label="# components", default_value=24, width=_width)
             self.pca_dim_in = dpg.add_input_int(label="PCA dim (0=off)", default_value=20, width=_width)
+            self.seed_in = dpg.add_input_int(label="RNG seed (-1 = random)", default_value=-1, width=_width)
+            with dpg.tooltip(self.seed_in):
+                dpg.add_text(
+                    "Seeds the PCA random rotation, the MFA fit and the data "
+                    "noise. -1 = random each run",
+                    wrap=260,
+                )
 
             dpg.add_spacer(height=10)
 
@@ -117,12 +132,12 @@ class MNISTDemoTab:
             dpg.add_text("Distance metric (Sec. 5.4)", color=[0, 255, 255])
             dpg.add_separator()
             self.lambda_in = dpg.add_input_float(
-                label="lambda (off-manifold penalty)", default_value=30.0, min_value=0.0, width=_width
+                label="off-manifold penalty", default_value=30.0, min_value=0.0,
+                format="%.2f", step=0.5, width=_width,
             )
             with dpg.tooltip(self.lambda_in):
                 dpg.add_text(
-                    "Penalty for moving off the tangent space. 0 = plain "
-                    "Euclidean, larger stretches normal directions more.",
+                    "Penalty for moving off the tangent space.",
                     wrap=260,
                 )
             self.k_distance_in = dpg.add_input_int(label="k - distance graph", default_value=5, width=_width)
@@ -134,6 +149,28 @@ class MNISTDemoTab:
                 )
 
             dpg.add_spacer(height=10)
+
+            # Detection Section (Sec. 5.5 / 5.6)
+            dpg.add_text("Detection (Sec. 5.5 / 5.6)", color=[0, 255, 255])
+            dpg.add_separator()
+            self.detection_in = dpg.add_radio_button(
+                ("tda", "traversal"), default_value="tda", horizontal=True
+            )
+            with dpg.tooltip(self.detection_in):
+                dpg.add_text(
+                    "tda = persistent homology. traversal = naive MST-diameter baseline.",
+                    wrap=260,
+                )
+            self.interp_w_in = dpg.add_input_float(
+                label="tangent weight", default_value=3.0, min_value=0.0,
+                step=0.5, width=_width,
+            )
+            with dpg.tooltip(self.interp_w_in):
+                dpg.add_text(
+                    "Strength of the soft chart-tangent alignment of the spline "
+                    "0 = pure minimal-curvature interpolation.",
+                    wrap=260,
+                )
 
             dpg.add_spacer(height=10)
             dpg.add_button(label="Train + Build Spline", callback=self._train_threaded, width=-1)
@@ -155,7 +192,7 @@ class MNISTDemoTab:
             dpg.add_text("Visualization dimension:")
             self.dim_var = dpg.add_radio_button(
                 ("2D", "3D"),
-                default_value="2D",
+                default_value="3D",
                 horizontal=True,
                 callback=self._request_async_plot
             )
@@ -367,6 +404,11 @@ class MNISTDemoTab:
         dpg.configure_item(self.export_status_lbl, color=[0, 255, 0])
 
     # ---------------- Pipeline & Training ----------------------
+    def _seed_value(self):
+        """Read the seed field; -1 (or any negative) means random (None)."""
+        seed = dpg.get_value(self.seed_in)
+        return None if seed < 0 else seed
+
     def _generate_data(self):
         dpg.set_value(self.data_lbl, "Loading...")
         dpg.configure_item(self.data_lbl, color=[255, 165, 0])
@@ -376,6 +418,8 @@ class MNISTDemoTab:
             n_angles=dpg.get_value(self.n_angles_in),
             n_images=1,
             center=True,
+            add_noise=dpg.get_value(self.noise_in),
+            random_state=self._seed_value(),
         )
 
         _, _, Vt = np.linalg.svd(self.X, full_matrices=False)
@@ -409,7 +453,9 @@ class MNISTDemoTab:
             pca_dim=pca_dim if pca_dim > 0 else None,
             lambda_aniso=dpg.get_value(self.lambda_in),
             n_neighbors=dpg.get_value(self.k_distance_in),
-            detection="traversal",
+            detection=dpg.get_value(self.detection_in),
+            interp_tangent_weight=dpg.get_value(self.interp_w_in),
+            seed=self._seed_value(),
         )
         exp.fit(self.X.copy())
         self.exp = exp
@@ -417,9 +463,13 @@ class MNISTDemoTab:
         atlas_summary(exp.model.means, exp.tangents, exp.variances, exp.noise_)
 
         res = exp.detect()
-        self.spline = res["spline"]
+        # method-agnostic: TDA's result dict has no top-level "spline" key,
+        # so read the first detected curve's spline (single structure for MNIST).
+        curves = res["curves"]
+        self.spline = curves[0]["spline"] if curves else None
 
-        txt = "training done."
+        n_struct = len(curves)
+        txt = f"training done. {n_struct} structure(s) detected."
         dpg.set_value(self.train_lbl, txt)
         dpg.configure_item(self.train_lbl, color=[0, 255, 0])
 

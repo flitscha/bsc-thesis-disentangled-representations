@@ -22,8 +22,7 @@ def _load_mnist_images(
         import tempfile
         import os
         cache = os.path.join(tempfile.gettempdir(), "mnist_cache")
-        ds = dsets.MNIST(cache, train=(which == "train"),
-                         download=True, transform=T.ToTensor())
+        ds = dsets.MNIST(cache, train=(which == "train"), download=True, transform=T.ToTensor())
         imgs = []
         for img_tensor, label in ds:
             if label == digit:
@@ -91,9 +90,7 @@ def make_rotation_dataset(
     X = np.stack(frames)
     angles_out = np.array(angle_list)
 
-    if add_noise > 0:
-        X += rng.normal(0, add_noise, size=X.shape)
-
+    # clean images in [0, 1] (removes rotation-interpolation over/undershoot)
     X = np.clip(X, 0.0, 1.0)
 
     # save mean in [0,1] pixel space before centering
@@ -104,6 +101,10 @@ def make_rotation_dataset(
         std = X.std(axis=0)
         std[std < 1e-8] = 1.0
         X /= std
+
+    # Uniform per-pixel, per-image Gaussian noise
+    if add_noise > 0:
+        X += rng.normal(0, add_noise, size=X.shape)
 
     return X, angles_out, pixel_mean
 
