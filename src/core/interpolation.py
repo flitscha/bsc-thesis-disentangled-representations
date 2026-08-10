@@ -137,7 +137,7 @@ def _solve_tangents(pts, segments, tang, wt, tangent_weight):
             proj = np.eye(D) - np.outer(tang[i], tang[i])
             A[i * D:(i + 1) * D, i * D:(i + 1) * D] += lam * proj
 
-    A += 1e-9 * (np.trace(A) / (n * D)) * np.eye(n * D) # keep A invertible
+    A += 1e-9 * (np.trace(A) / (n * D)) * np.eye(n * D) # numerical safeguard
     return np.linalg.solve(A, rhs).reshape(n, D)
 
 

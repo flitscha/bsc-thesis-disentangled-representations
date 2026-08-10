@@ -70,6 +70,20 @@ def mfa_log_likelihood(model, X):
     log_p : (N,) ndarray
         Log-density of each point under the mixture.
     """
+    return logsumexp(_component_log_probs(model, X), axis=1)
+
+
+def _component_log_probs(model, X):
+    """
+    Per-component log joint log[pi_k * N(x | mu_k, Sigma_k)], shape (N, C).
+
+    Summing the rows with logsumexp gives the mixture log-density
+    (`mfa_log_likelihood`); taking the per-row argmax gives the responsible
+    component (`mfa_reconstruct`). For cov_type "mfa" the Gaussian is evaluated
+    via the Woodbury identity / matrix determinant lemma, which is O(N C D H)
+    instead of O(N C D^3) for the dense (D, D) form (vamm itself warns that
+    `covariances` is expensive for large D).
+    """
     X = np.asarray(X)
     means = np.asarray(model.means)
     log_pi = np.log(np.asarray(model.prior) + 1e-300)
@@ -78,9 +92,6 @@ def mfa_log_likelihood(model, X):
 
     if model.covariance_type == "mfa":
         # Low-rank + diagonal covariance Sigma_k = W_k W_k^T + Psi_k.
-        # Evaluate log N via the Woodbury identity / matrix determinant lemma,
-        # which is O(N C D H) instead of O(N C D^3) for the dense (D, D) form
-        # (vamm itself warns that `covariances` is expensive for large D).
         W = np.asarray(model.A)          # (C, D, H)
         psi = np.asarray(model.variance)  # (C, D) diagonal noise variances
         D, Hdim = W.shape[1], W.shape[2]
@@ -104,7 +115,7 @@ def mfa_log_likelihood(model, X):
             log_comp[:, k] = log_pi[k] + multivariate_normal.logpdf(
                 X, mean=means[k], cov=covariances[k], allow_singular=True
             )
-    return logsumexp(log_comp, axis=1)
+    return log_comp
 
 
 def average_nll(model, X, per_dim=True):
@@ -137,6 +148,61 @@ def average_nll(model, X, per_dim=True):
     if per_dim:
         nll /= X.shape[1]
     return float(nll)
+
+
+def mfa_reconstruct(model, X):
+    """
+    Reconstruct each point through the MFA model (posterior-mean denoising).
+
+    Each x is assigned to its most responsible component k (argmax posterior),
+    and reconstructed as the factor-analyzer posterior mean
+
+        x_hat = mu_k + W_k (I + W_k^T Psi_k^-1 W_k)^-1 W_k^T Psi_k^-1 (x - mu_k).
+
+    This projects x onto the low-rank local subspace of its component while the
+    diagonal noise Psi_k is absorbed. It is the best the fitted model can
+    represent x with, and therefore serves as the representational floor for
+    reconstruction-based evaluation, independent of any recovered ordering or
+    factor. Operates in the space the model was fitted in (e.g. the reduced
+    PCA + rotation space); lift back to ambient space separately if needed.
+
+    Parameters
+    ----------
+    model : vamm.Gaussian
+        A fitted MFA model (covariance_type="mfa").
+    X : (N, D) array
+        Points in the model's space.
+
+    Returns
+    -------
+    X_hat : (N, D) ndarray
+        Posterior-mean reconstruction of each point.
+    """
+    if model.covariance_type != "mfa":
+        raise NotImplementedError(
+            "mfa_reconstruct is only defined for covariance_type='mfa'."
+        )
+    X = np.asarray(X, dtype=float)
+    means = np.asarray(model.means)      # (C, D)
+    W = np.asarray(model.A)              # (C, D, H)
+    psi = np.asarray(model.variance)     # (C, D)
+    H = W.shape[2]
+
+    # responsible component per point (argmax posterior = argmax joint log-prob)
+    resp = np.argmax(_component_log_probs(model, X), axis=1)  # (N,)
+
+    X_hat = np.empty_like(X)
+    for k in range(means.shape[0]):
+        idx = np.nonzero(resp == k)[0]
+        if idx.size == 0:
+            continue
+        Wk, mu_k = W[k], means[k]
+        pinv = 1.0 / psi[k]
+        M = np.eye(H) + (Wk.T * pinv) @ Wk               # (H, H)
+        diff = X[idx] - mu_k                              # (n_k, D)
+        latent = np.linalg.solve(M, ((diff * pinv) @ Wk).T).T  # (n_k, H) posterior mean
+        X_hat[idx] = mu_k + latent @ Wk.T
+    return X_hat
 
 
 def extract_tangent_frame(loadings: np.ndarray, n_tangents: int = 1, noise: np.ndarray = None):
@@ -286,3 +352,4 @@ def atlas_summary(means, tangents, variances, noise_var):
     print(f"  Mean signal/noise     : {snr.mean():.2f}")
     print(f"  Min SNR (worst chart) : {snr.min():.2f}  (component {snr.argmin()})")
     print(f"  Max SNR (best chart)  : {snr.max():.2f}  (component {snr.argmax()})")
+
