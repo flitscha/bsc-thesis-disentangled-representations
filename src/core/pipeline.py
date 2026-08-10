@@ -287,3 +287,62 @@ class ManifoldPipeline:
             return np.asarray(points)
         return self.pre.inverse_transform(points)
 
+    # ------------------------------------------------------------------
+    # encode: map observations onto the learned 1D coordinate (f: X -> Z)
+    # ------------------------------------------------------------------
+    def transform(self, X, n_samples=512):
+        """
+        Encode observations into the learned 1D coordinate(s): the disentangling
+        map f: X -> Z of the thesis.
+
+        Each observation is projected onto the nearest detected curve by densely
+        sampling its spline and taking the closest sample. Returns, per
+        observation, which curve it belongs to and its parameter t along that
+        curve. This is label-free (uses no ground truth), so it stays part of the
+        unsupervised model; ground-truth alignment happens only at evaluation
+        time. Operates in the reduced (PCA+rotation) space the curves live in.
+
+        Parameters
+        ----------
+        X : (N, D0) array
+            Observations in the ambient space.
+        n_samples : int
+            Spline samples per curve for the nearest-point search.
+
+        Returns
+        -------
+        t : (N,) ndarray
+            Parameter in [0, 1] of the nearest point on the assigned curve
+            (in [0, 1) for loops, which are periodic).
+        curve_id : (N,) ndarray of int
+            Index into self.curves_ of the assigned curve.
+        """
+        if self.curves_ is None:
+            raise RuntimeError("call detect() before transform().")
+        Z = self.pre.transform(np.asarray(X)) if self.pre is not None else np.asarray(X)
+        N = Z.shape[0]
+        z2 = np.sum(Z * Z, axis=1)[:, None] # (N, 1)
+
+        best_t = np.zeros(N)
+        best_id = np.zeros(N, dtype=int)
+        best_d2 = np.full(N, np.inf)
+
+        for cid, curve in enumerate(self.curves_):
+            spline = curve.get("spline")
+            if spline is None:
+                continue
+            # loops are periodic (t=0 == t=1), so drop the duplicate endpoint;
+            # open curves keep it.
+            endpoint = curve.get("type") != "loop"
+            ts = np.linspace(0.0, 1.0, n_samples, endpoint=endpoint)
+            pts = np.asarray(spline(ts)) # (n_samples, D)
+            # squared distances (N, n_samples): |z|^2 + |p|^2 - 2 z.p
+            d2 = z2 + np.sum(pts * pts, axis=1)[None, :] - 2.0 * (Z @ pts.T)
+            j = np.argmin(d2, axis=1)
+            dmin = d2[np.arange(N), j]
+            take = dmin < best_d2
+            best_d2[take] = dmin[take]
+            best_t[take] = ts[j[take]]
+            best_id[take] = cid
+        return best_t, best_id
+
