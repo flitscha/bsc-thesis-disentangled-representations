@@ -51,8 +51,9 @@ class ManifoldPipeline:
     _MFA_PARAMS = ("n_components", "latent_dim", "cov_type", "shared")  # -> fit_model()  §5.3
     _DISTANCE_PARAMS = ("lambda_aniso", "n_neighbors")                 # -> distance_matrix()  §5.4
     _DETECT_PARAMS = ("detection",)                                    # -> detect_structure()  §5.5/6
+    _INTERP_PARAMS = ("interp_tangent_weight",)                         # -> interpolate()  §5.7
     # `seed` feeds preprocess() and fit_model() -> full re-fit when changed
-    _PARAMS = _PCA_PARAMS + _MFA_PARAMS + ("seed",) + _DISTANCE_PARAMS + _DETECT_PARAMS
+    _PARAMS = _PCA_PARAMS + _MFA_PARAMS + ("seed",) + _DISTANCE_PARAMS + _DETECT_PARAMS + _INTERP_PARAMS
 
     def __init__(
         self,
@@ -64,6 +65,7 @@ class ManifoldPipeline:
         detection="tda",
         lambda_aniso=30.0,
         n_neighbors=5,
+        interp_tangent_weight=3.0,
         seed=None,
         **detect_kwargs,
     ):
@@ -79,6 +81,9 @@ class ManifoldPipeline:
         # --- distance parameters (§5.4) ---
         self.lambda_aniso = lambda_aniso   # off-manifold penalty of the local metric
         self.n_neighbors = n_neighbors     # neighbors of the geodesic graph
+
+        # --- interpolation parameter (§5.7) ---
+        self.interp_tangent_weight = interp_tangent_weight  # chart-tangent alignment strength
 
         # --- detection parameters (§5.5/6) ---
         self.detection = detection
@@ -225,10 +230,19 @@ class ManifoldPipeline:
     # §5.7 interpolation
     # ------------------------------------------------------------------
     def interpolate(self):
-        """Attach cubic splines to the detected curves."""
+        """Attach smooth curves to the detected structures.
+
+        The curve interpolates the component means exactly (Hermite spline); its
+        knot tangents are softly aligned with the MFA chart tangents, weighted by
+        the mixing weight pi_k (low-pi_k charts barely pull). See core.interpolation.
+        """
         if self.curves_ is None:
             raise RuntimeError("call detect_structure() before interpolate().")
-        self.curves_ = interpolate_curves(self.curves_, self.model.means)
+        self.curves_ = interpolate_curves(
+            self.curves_, self.model.means,
+            weights=self.model.prior, tangents=self.tangents,
+            tangent_weight=self.interp_tangent_weight,
+        )
         return self.curves_
 
     # ------------------------------------------------------------------
