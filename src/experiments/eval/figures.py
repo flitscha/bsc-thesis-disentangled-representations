@@ -106,10 +106,10 @@ def plot_reconstruction_decomposition(
         ie = float(np.mean(errors["input_error"]))
         if ie > 1e-9:
             ax.axhline(ie, color="gray", ls="--", lw=1, label="input error (noise)")
-    ax.set_xlabel(factor_label)
-    ax.set_ylabel("pixel RMSE (binned mean)")
-    ax.set_title(title)
-    ax.legend()
+    ax.set_xlabel(factor_label, fontsize=13)
+    ax.set_ylabel("pixel RMSE (binned mean)", fontsize=13)
+    ax.set_title(title, fontsize=15)
+    ax.legend(fontsize=11)
     fig.tight_layout()
     return fig
 
