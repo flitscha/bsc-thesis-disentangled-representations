@@ -1,0 +1,52 @@
+{
+  "experiment": "mnist_rotation",
+  "run_name": "digit3_seed0/denoising_traversal",
+  "timestamp": "2026-08-11T11:45:13",
+  "kind": "loop",
+  "params": {
+    "pca_dim": 20,
+    "n_components": 24,
+    "latent_dim": 1,
+    "cov_type": "mfa",
+    "shared": false,
+    "seed": 0,
+    "lambda_aniso": 30.0,
+    "n_neighbors": 5,
+    "detection": "traversal",
+    "interp_tangent_weight": 3.0
+  },
+  "extra": {
+    "digit": 3,
+    "seed": 0,
+    "mode": "denoising",
+    "method": "traversal",
+    "noise": 0.2500000298023224
+  },
+  "metrics": {
+    "topology": {
+      "n_detected": 1,
+      "types_detected": [
+        "loop"
+      ],
+      "n_expected": 1,
+      "types_expected": [
+        "loop"
+      ],
+      "match": true
+    },
+    "angle_error": {
+      "mean": 3.4742179716095154,
+      "median": 3.2421875,
+      "max": 9.008938579306232,
+      "s": -1.0,
+      "delta_deg": -93.08706357930618
+    },
+    "reconstruction": {
+      "full": 0.26751316804003655,
+      "mfa_floor": 0.2884935931116244,
+      "pca_floor": 0.3406383415717252,
+      "input_error": 0.9754449356149824
+    },
+    "ari": null
+  }
+}

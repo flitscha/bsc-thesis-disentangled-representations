@@ -1,0 +1,52 @@
+{
+  "experiment": "mnist_rotation",
+  "run_name": "digit3_seed0/capacity_tda",
+  "timestamp": "2026-08-11T11:45:10",
+  "kind": "loop",
+  "params": {
+    "pca_dim": 20,
+    "n_components": 24,
+    "latent_dim": 1,
+    "cov_type": "mfa",
+    "shared": false,
+    "seed": 0,
+    "lambda_aniso": 30.0,
+    "n_neighbors": 5,
+    "detection": "tda",
+    "interp_tangent_weight": 3.0
+  },
+  "extra": {
+    "digit": 3,
+    "seed": 0,
+    "mode": "capacity",
+    "method": "tda",
+    "noise": 0.0
+  },
+  "metrics": {
+    "topology": {
+      "n_detected": 1,
+      "types_detected": [
+        "loop"
+      ],
+      "n_expected": 1,
+      "types_expected": [
+        "loop"
+      ],
+      "match": true
+    },
+    "angle_error": {
+      "mean": 0.9217397907567305,
+      "median": 0.7734375,
+      "max": 4.410220547413417,
+      "s": 1.0,
+      "delta_deg": -102.0820955474134
+    },
+    "reconstruction": {
+      "full": 0.15168648241854368,
+      "mfa_floor": 0.13935212037175676,
+      "pca_floor": 0.13216688857973832,
+      "input_error": 0.0
+    },
+    "ari": null
+  }
+}
