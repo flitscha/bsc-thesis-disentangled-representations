@@ -8,19 +8,30 @@ import numpy as np
 from .spline import visualize_spline
 
 
-def render_samples_frame(fig, X, angles, digit):
+def _to_image(v, pixel_mean=None, pixel_std=None, shape=(30, 30)):
+    """
+    Invert the standardization (v * std + mean) to turn a standardized vector
+    back into a displayable [0, 1] image.
+    """
+    v = np.asarray(v, dtype=float)
+    if pixel_std is not None:
+        v = v * np.asarray(pixel_std)
+    if pixel_mean is not None:
+        v = v + np.asarray(pixel_mean)
+    return np.clip(v, 0.0, 1.0).reshape(shape)
+
+
+def render_samples_frame(fig, X, angles, digit, pixel_mean=None, pixel_std=None):
     n_show = 20
     idx = np.linspace(0, len(X) - 1, n_show, dtype=int)
     cols, rows = 10, 2
     axes = fig.subplots(rows, cols)
 
-    pixel_mean = X.mean(axis=0) if X is not None else 0
-
     for k, i in enumerate(idx):
         r, c = divmod(k, cols)
         ax = axes[r, c]
-        img = (X[i] + pixel_mean).reshape(30, 30)
-        ax.imshow(np.clip(img, 0.0, 1.0), cmap="gray", vmin=0, vmax=1, interpolation="nearest")
+        ax.imshow(_to_image(X[i], pixel_mean, pixel_std), cmap="gray",
+                  vmin=0, vmax=1, interpolation="nearest")
         ax.set_title(f"{angles[i]:.0f}°", fontsize=8)
         ax.axis("off")
 
@@ -73,15 +84,15 @@ def render_pca_frame(fig, state, pca_data, angles, exp, pca_basis, spline_to_pix
     fig.tight_layout()
 
 
-def render_spline_frame(fig, state, X, pca_data, angles, exp, pca_basis, spline, spline_to_pixel_fn):
+def render_spline_frame(fig, state, pca_data, angles, exp, pca_basis, spline, spline_to_pixel_fn,
+                        pixel_mean=None, pixel_std=None):
     if spline is None:
         render_pca_frame(fig, state, pca_data, angles, exp, pca_basis, spline_to_pixel_fn)
         return
 
     t = state["t"]
     point = spline_to_pixel_fn(t)
-    pixel_mean = X.mean(axis=0) if X is not None else 0
-    img = np.clip((point + pixel_mean).reshape(30, 30), 0.0, 1.0)
+    img = _to_image(point, pixel_mean, pixel_std)
 
     ax_img = fig.add_subplot(1, 2, 1)
     if state["is_3d"]:

@@ -1,8 +1,14 @@
 """
 Generates a dataset of MNIST digits rotated 0..360 degrees.
 
-Returns X (centered), angles, and pixel_mean so callers can reconstruct
-displayable images via:  img = (X[i] + pixel_mean).reshape(28, 28)
+Noise is added in pixel space.
+The returned X is then standardized: per-pixel mean removed and divided by a
+single global scale.
+
+Returns X, angles, pixel_mean and pixel_std.
+mean and std are only needed to invert the standardization for display, i.e. to turn a
+standardized vector back into a [0, 1] image:
+    img = (v * pixel_std + pixel_mean).reshape(30, 30)
 """
 
 import numpy as np
@@ -60,17 +66,17 @@ def make_rotation_dataset(
     center: bool = True,
     add_noise: float = 0.0,
     random_state: int = 0,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Rotate MNIST digit images through 360 degrees.
 
     Returns
     -------
-    X          : (n_images * n_angles, 784)  centered if center=True
-    angles     : (n_images * n_angles,)  in degrees
-    pixel_mean : (784,)  per-pixel mean BEFORE centering, in [0, 1]
-                 Use this to reconstruct displayable images:
-                     img = (X[i] + pixel_mean).reshape(28, 28)
+    X          : (n_images * n_angles, 900) standardized (+ noise) if center=True
+    angles     : (n_images * n_angles,) in degrees
+    pixel_mean : (900,) per-pixel mean of the clean images (0 if center=False)
+    pixel_std  : (900,) global scale of the clean images, broadcast to every
+                 pixel (all entries equal; 1 if center=False)
     """
     images = _load_mnist_images(digit, n_images)
     angles = np.linspace(0, 360, n_angles, endpoint=False)
@@ -93,18 +99,22 @@ def make_rotation_dataset(
     # clean images in [0, 1] (removes rotation-interpolation over/undershoot)
     X = np.clip(X, 0.0, 1.0)
 
-    # save mean in [0,1] pixel space before centering
-    pixel_mean = X.mean(axis=0)
-
+    # Standardization parameters from the clean images.
+    pixel_mean = np.zeros(X.shape[1])
+    pixel_std = np.ones(X.shape[1])
     if center:
-        X -= pixel_mean
-        std = X.std(axis=0)
-        std[std < 1e-8] = 1.0
-        X /= std
+        pixel_mean = X.mean(axis=0)
+        scale = float((X - pixel_mean).std())
+        scale = scale if scale > 1e-8 else 1.0
+        pixel_std = np.full(X.shape[1], scale)
 
-    # Uniform per-pixel, per-image Gaussian noise
+    # Add the noise before standardization, so it is spatially uniform on the actual image
     if add_noise > 0:
-        X += rng.normal(0, add_noise, size=X.shape)
+        X = X + rng.normal(0, add_noise, size=X.shape)
 
-    return X, angles_out, pixel_mean
+    # Standardize
+    if center:
+        X = (X - pixel_mean) / pixel_std
+
+    return X, angles_out, pixel_mean, pixel_std
 

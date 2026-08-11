@@ -29,6 +29,7 @@ class MNISTDemoTab:
         # State variables
         self.X = None
         self.pixel_mean = None
+        self.pixel_std = None
         self.angles = None
         self.exp = None
         self.spline = None
@@ -390,11 +391,11 @@ class MNISTDemoTab:
 
         mode = state["mode"]
         if mode == "samples":
-            render_samples_frame(fig, self.X, self.angles, state["digit"])
+            render_samples_frame(fig, self.X, self.angles, state["digit"], self.pixel_mean, self.pixel_std)
         elif mode == "pca":
             render_pca_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self._spline_to_pixel)
         elif mode == "spline":
-            render_spline_frame(fig, state, self.X, self.pca_data, self.angles, self.exp, self.pca_basis, self.spline, self._spline_to_pixel)
+            render_spline_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self.spline, self._spline_to_pixel, self.pixel_mean, self.pixel_std)
 
         canvas.draw()
         fig.savefig(path, dpi=export_dpi, bbox_inches="tight")
@@ -413,7 +414,7 @@ class MNISTDemoTab:
         dpg.set_value(self.data_lbl, "Loading...")
         dpg.configure_item(self.data_lbl, color=[255, 165, 0])
 
-        self.X, self.angles, self.pixel_mean = make_rotation_dataset(
+        self.X, self.angles, self.pixel_mean, self.pixel_std = make_rotation_dataset(
             digit=dpg.get_value(self.digit_in),
             n_angles=dpg.get_value(self.n_angles_in),
             n_images=1,
@@ -514,11 +515,11 @@ class MNISTDemoTab:
 
             mode = state["mode"]
             if mode == "samples":
-                render_samples_frame(fig, self.X, self.angles, state["digit"])
+                render_samples_frame(fig, self.X, self.angles, state["digit"], self.pixel_mean, self.pixel_std)
             elif mode == "pca":
                 render_pca_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self._spline_to_pixel)
             elif mode == "spline":
-                render_spline_frame(fig, state, self.X, self.pca_data, self.angles, self.exp, self.pca_basis, self.spline, self._spline_to_pixel)
+                render_spline_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self.spline, self._spline_to_pixel, self.pixel_mean, self.pixel_std)
 
             canvas.draw()
             w, h = canvas.get_width_height()
