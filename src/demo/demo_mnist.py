@@ -12,11 +12,14 @@ matplotlib.use("Agg")
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
-from data.mnist_rotation import make_rotation_dataset
+from data.mnist_rotation import make_multi_rotation_dataset
 from core.pipeline import ManifoldPipeline
 from core.mfa import atlas_summary
-from visualization.mnist import render_samples_frame, render_pca_frame, render_spline_frame
-from experiments.mnist_rotation_eval import run_evaluation, _format_comparison
+from visualization.mnist import (
+    render_samples_frame, render_pca_frame, render_spline_frame,
+    render_persistence_frame,
+)
+from experiments.multi_factor_eval import run_evaluation as run_multi_evaluation
 
 DPI = 100
 MIN_TEX = 250
@@ -64,6 +67,23 @@ class MNISTDemoTab:
         self.export_dialog_tag = "mnist_export_dialog"
         self.export_status_lbl = None
 
+        # Per-digit data table widgets (include + angle range + samples)
+        self.multi_include = {}
+        self.multi_start = {}
+        self.multi_end = {}
+        self.multi_samples = {}
+        self.multi_eval_lbl = None
+        self.data_label = "-"
+
+        # Multi-component visualization state
+        self.digit_id = None
+        self.diagram = None                # persistence diagram of the detection
+        self.curves = None                 # detected curves (with splines)
+        self.curve_projections = None      # each curve sampled + projected to PCA space
+        self.selected_component = 0
+        self.component_var = None
+        self.component_label_to_idx = {}
+
     def start_workers(self):
         threading.Thread(target=self._plot_worker, daemon=True).start()
 
@@ -82,53 +102,72 @@ class MNISTDemoTab:
 
 
     def _build_settings_panel(self):
-        with dpg.child_window(width=320, border=True):
+        with dpg.child_window(width=360, border=True):
             _width = 125
 
             dpg.add_text(
-                "Fits an MFA to rotated images of a digit, builds a "
-                "tangent-aware distance (Sec. 5.4), and traces the rotation loop "
-                "with the selected detection method: persistent homology (TDA, "
-                "Sec. 5.6) or the naive MST-diameter traversal baseline "
-                "(Sec. 5.5).",
-                wrap=280, color=[150, 150, 150],
+                "Rotating MNIST digits: each digit is a separate component, a "
+                "full 0-360 sweep a loop, a partial sweep an arc. Detected with "
+                "TDA (Sec. 5.6).",
+                wrap=320, color=[150, 150, 150],
             )
             dpg.add_spacer(height=8)
 
-            # Data Section
-            dpg.add_text("Data", color=[0, 255, 255])
+            # Data Section: per-digit table
+            dpg.add_text("Data (digits to rotate)", color=[0, 255, 255])
             dpg.add_separator()
-            self.digit_in = dpg.add_input_int(
-                label="Digit (0-9)", default_value=3, min_value=0, max_value=9, width=_width
+            dpg.add_button(
+                label="Preset: clean mix (0 loop + 3 loop + 7 arc)",
+                callback=self._multi_preset_clean, width=-1,
             )
-            self.n_angles_in = dpg.add_input_int(label="Number of samples", default_value=360, width=_width)
+            with dpg.group(horizontal=True):
+                dpg.add_text("use", color=[150, 150, 150])
+                dpg.add_text("digit", color=[150, 150, 150])
+                dpg.add_text("  start", color=[150, 150, 150])
+                dpg.add_text("   end", color=[150, 150, 150])
+                dpg.add_text("  samples", color=[150, 150, 150])
+            for d in range(10):
+                with dpg.group(horizontal=True):
+                    self.multi_include[d] = dpg.add_checkbox(default_value=(d == 3))
+                    dpg.add_text(f"  {d}  ")
+                    self.multi_start[d] = dpg.add_input_int(
+                        default_value=0, width=70, step=0)
+                    self.multi_end[d] = dpg.add_input_int(
+                        default_value=360, width=70, step=0)
+                    self.multi_samples[d] = dpg.add_input_int(
+                        default_value=360, width=70, step=0)
+
+            dpg.add_spacer(height=6)
             self.noise_in = dpg.add_input_float(
-                label="Pixel noise (std)", default_value=0.0, min_value=0.0, step=0.01, width=_width
+                label="Pixel noise (std)", default_value=0.15, min_value=0.0,
+                step=0.01, width=_width,
             )
             with dpg.tooltip(self.noise_in):
                 dpg.add_text(
-                    "Std of uniform per-pixel, per-image Gaussian noise",
-                    wrap=260,
-                )
+                    "Std of uniform per-pixel, per-image Gaussian noise", wrap=260)
+            self.seed_in = dpg.add_input_int(
+                label="RNG seed (-1 = random)", default_value=-1, width=_width)
+            with dpg.tooltip(self.seed_in):
+                dpg.add_text(
+                    "Seeds the PCA random rotation, the MFA fit and the data "
+                    "noise. -1 = random each run", wrap=260)
             dpg.add_button(label="Generate Data", callback=self._generate_data, width=-1)
-            self.data_lbl = dpg.add_text("-", color=[150, 150, 150])
+            self.data_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=320)
 
-            dpg.add_spacer(height=10)
+            dpg.add_spacer(height=6)
 
             # MFA Model Section
             dpg.add_text("MFA model", color=[0, 255, 255])
             dpg.add_separator()
             self.n_comp_in = dpg.add_input_int(label="# components", default_value=24, width=_width)
-            self.pca_dim_in = dpg.add_input_int(label="PCA dim (0=off)", default_value=20, width=_width)
-            self.seed_in = dpg.add_input_int(label="RNG seed (-1 = random)", default_value=-1, width=_width)
-            with dpg.tooltip(self.seed_in):
+            with dpg.tooltip(self.n_comp_in):
                 dpg.add_text(
-                    "Seeds the PCA random rotation, the MFA fit and the data "
-                    "noise. -1 = random each run",
-                    wrap=260,
-                )
+                    "Total charts across all digits. With several digits raise "
+                    "this (e.g. 90 for three) so each component is well sampled.",
+                    wrap=260)
+            self.pca_dim_in = dpg.add_input_int(label="PCA dim (0=off)", default_value=20, width=_width)
 
-            dpg.add_spacer(height=10)
+            dpg.add_spacer(height=6)
 
             # Distance Section (Sec. 5.4)
             dpg.add_text("Distance metric (Sec. 5.4)", color=[0, 255, 255])
@@ -138,31 +177,18 @@ class MNISTDemoTab:
                 format="%.2f", step=0.5, width=_width,
             )
             with dpg.tooltip(self.lambda_in):
-                dpg.add_text(
-                    "Penalty for moving off the tangent space.",
-                    wrap=260,
-                )
+                dpg.add_text("Penalty for moving off the tangent space.", wrap=260)
             self.k_distance_in = dpg.add_input_int(label="k - distance graph", default_value=5, width=_width)
             with dpg.tooltip(self.k_distance_in):
                 dpg.add_text(
                     "Neighbors of the k-NN graph whose shortest paths give the "
-                    "geodesic distance (Sec. 5.4).",
-                    wrap=260,
-                )
+                    "geodesic distance (Sec. 5.4).", wrap=260)
 
-            dpg.add_spacer(height=10)
+            dpg.add_spacer(height=6)
 
-            # Detection Section (Sec. 5.5 / 5.6)
-            dpg.add_text("Detection (Sec. 5.5 / 5.6)", color=[0, 255, 255])
+            # Interpolation Section (Sec. 5.7); detection is always TDA
+            dpg.add_text("Interpolation (Sec. 5.7)", color=[0, 255, 255])
             dpg.add_separator()
-            self.detection_in = dpg.add_radio_button(
-                ("tda", "traversal"), default_value="tda", horizontal=True
-            )
-            with dpg.tooltip(self.detection_in):
-                dpg.add_text(
-                    "tda = persistent homology. traversal = naive MST-diameter baseline.",
-                    wrap=260,
-                )
             self.interp_w_in = dpg.add_input_float(
                 label="tangent weight", default_value=3.0, min_value=0.0,
                 step=0.5, width=_width,
@@ -170,51 +196,51 @@ class MNISTDemoTab:
             with dpg.tooltip(self.interp_w_in):
                 dpg.add_text(
                     "Strength of the soft chart-tangent alignment of the spline "
-                    "0 = pure minimal-curvature interpolation.",
-                    wrap=260,
-                )
+                    "0 = pure minimal-curvature interpolation.", wrap=260)
 
-            dpg.add_spacer(height=10)
-            dpg.add_button(label="Train + Build Spline", callback=self._train_threaded, width=-1)
-            self.train_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
+            dpg.add_spacer(height=6)
+            dpg.add_button(label="Train + Detect (TDA)", callback=self._train_threaded, width=-1)
+            self.train_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=320)
 
-            dpg.add_spacer(height=10)
+            dpg.add_spacer(height=6)
 
             # Evaluation Section (offline, saved to disk)
             dpg.add_text("Evaluation", color=[0, 255, 255])
             dpg.add_separator()
-            dpg.add_text(
-                "Runs the full offline evaluation for the current settings: "
-                "capacity + denoising x TDA vs. MST baseline. Saves summary, "
-                "metrics and figures under results/mnist_rotation/ (not shown here).",
-                wrap=280, color=[150, 150, 150],
-            )
-            dpg.add_button(label="Run full evaluation (save to disk)",
-                           callback=self._run_evaluation_threaded, width=-1)
-            self.eval_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
+            eval_btn = dpg.add_button(label="Run evaluation (save to disk)",
+                                      callback=self._run_multi_evaluation_threaded, width=-1)
+            with dpg.tooltip(eval_btn):
+                dpg.add_text(
+                    "Offline evaluation for the current table (TDA, one noisy "
+                    "regime): topology (M1), ARI (M4), per-component angle error "
+                    "(M2) + persistence and component-scatter figures under "
+                    "results/mnist_multi/.",
+                    wrap=260,
+                )
+            self.multi_eval_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=320)
 
-            dpg.add_spacer(height=10)
+            dpg.add_spacer(height=6)
 
             # Render Mode Section
             dpg.add_text("Render Mode", color=[0, 255, 255])
             dpg.add_separator()
             self.mode_var = dpg.add_radio_button(
-                ("samples", "pca", "spline"),
+                ("samples", "pca", "spline", "persistence"),
                 default_value="samples",
+                horizontal=True,
                 callback=self._on_mode_change
             )
 
-            # Visualization (2D / 3D)
-            dpg.add_spacer(height=5)
-            dpg.add_text("Visualization dimension:")
-            self.dim_var = dpg.add_radio_button(
-                ("2D", "3D"),
-                default_value="3D",
-                horizontal=True,
-                callback=self._request_async_plot
-            )
+            dpg.add_spacer(height=6)
 
-            dpg.add_spacer(height=10)
+            # Component selector (populated after detection). Picks which
+            # detected curve the spline view reconstructs and the t-slider walks.
+            dpg.add_text("Component to traverse", color=[0, 255, 255])
+            dpg.add_separator()
+            self.component_var = dpg.add_radio_button(
+                ("-",), default_value="-", callback=self._on_component_change)
+
+            dpg.add_spacer(height=8)
 
             # Slider Section
             dpg.add_text("Spline Parameter t", color=[0, 255, 255])
@@ -257,13 +283,9 @@ class MNISTDemoTab:
             dpg.add_mouse_move_handler(callback=self._on_mouse_move)
             dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left, callback=self._on_mouse_up)
 
-    def _is_3d(self):
-        return dpg.get_value(self.dim_var) == "3D"
-
     def _on_mouse_down(self, sender, app_data):
+        # drag to orbit the 3D PCA projection
         if not dpg.is_item_hovered(self.image_tag):
-            return
-        if not self._is_3d():
             return
         self._dragging = True
         self._last_mouse_pos = None
@@ -321,10 +343,12 @@ class MNISTDemoTab:
     def _on_mode_change(self):
         """Validates if the model is trained before allowing spline selection."""
         chosen_mode = dpg.get_value(self.mode_var)
-        if chosen_mode == "spline" and self.spline is None:
+        needs_detection = {"spline": self.spline, "persistence": self.diagram}
+        if chosen_mode in needs_detection and not needs_detection[chosen_mode]:
             # Force UI fallback to 'samples' mode
             dpg.set_value(self.mode_var, "samples")
-            dpg.set_value(self.train_lbl, "Please train the model first before selecting Spline!")
+            dpg.set_value(self.train_lbl,
+                          f"Please train + detect first before selecting '{chosen_mode}'!")
             dpg.configure_item(self.train_lbl, color=[255, 50, 50])
             return
 
@@ -392,13 +416,14 @@ class MNISTDemoTab:
 
         state = {
             "mode": dpg.get_value(self.mode_var),
-            "is_3d": dpg.get_value(self.dim_var) == "3D",
             "t": dpg.get_value(self.t_slider),
             "width": self.tex_w,
             "height": self.tex_h,
-            "digit": dpg.get_value(self.digit_in),
+            "digit": self.data_label,
             "elev": self.elev,
             "azim": self.azim,
+            "overlay_curves": self.curve_projections,
+            "selected_component": self.selected_component,
         }
 
         export_dpi = 200
@@ -412,6 +437,8 @@ class MNISTDemoTab:
             render_pca_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self._spline_to_pixel)
         elif mode == "spline":
             render_spline_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self.spline, self._spline_to_pixel, self.pixel_mean, self.pixel_std)
+        elif mode == "persistence":
+            render_persistence_frame(fig, self.diagram, self.curves, self.selected_component)
 
         canvas.draw()
         fig.savefig(path, dpi=export_dpi, bbox_inches="tight")
@@ -427,28 +454,41 @@ class MNISTDemoTab:
         return None if seed < 0 else seed
 
     def _generate_data(self):
+        specs = self._current_specs()
+        if not specs:
+            dpg.set_value(self.data_lbl, "Select at least one digit in the table.")
+            dpg.configure_item(self.data_lbl, color=[255, 0, 0])
+            return
+
         dpg.set_value(self.data_lbl, "Loading...")
         dpg.configure_item(self.data_lbl, color=[255, 165, 0])
 
-        self.X, self.angles, self.pixel_mean, self.pixel_std = make_rotation_dataset(
-            digit=dpg.get_value(self.digit_in),
-            n_angles=dpg.get_value(self.n_angles_in),
-            n_images=1,
-            center=True,
-            add_noise=dpg.get_value(self.noise_in),
+        (self.X, self.angles, self.digit_id, self.meta,
+         self.pixel_mean, self.pixel_std) = make_multi_rotation_dataset(
+            specs, add_noise=dpg.get_value(self.noise_in),
             random_state=self._seed_value(),
         )
 
         _, _, Vt = np.linalg.svd(self.X, full_matrices=False)
-        self.pca_basis = Vt[:3].T                 
-        self.pca_data  = self.X @ self.pca_basis  
+        self.pca_basis = Vt[:3].T
+        self.pca_data = self.X @ self.pca_basis
 
-        N = len(self.X)
-        dpg.set_value(self.data_lbl, f"Digit {dpg.get_value(self.digit_in)}: {N} pts generated.")
+        self.data_label = ",".join(str(s["digit"]) for s in specs)
+        kinds = ", ".join(
+            f"{s['digit']}({'loop' if s['start'] == 0 and s['end'] == 360 else 'arc'})"
+            for s in specs)
+        dpg.set_value(self.data_lbl,
+                      f"{len(self.X)} pts from {len(specs)} digit(s): {kinds}.")
         dpg.configure_item(self.data_lbl, color=[0, 255, 0])
 
+        # detection artifacts are stale once the data changes
         self.spline = None
         self.exp = None
+        self.curves = None
+        self.curve_projections = None
+        self.diagram = None
+        self.selected_component = 0
+        dpg.configure_item(self.component_var, items=("-",), default_value="-")
         dpg.set_value(self.mode_var, "samples")
         self._request_async_plot()
 
@@ -461,36 +501,62 @@ class MNISTDemoTab:
         dpg.configure_item(self.train_lbl, color=[255, 165, 0])
         threading.Thread(target=self._train, daemon=True).start()
 
-    def _run_evaluation_threaded(self):
-        dpg.set_value(self.eval_lbl, "Starting evaluation...")
-        dpg.configure_item(self.eval_lbl, color=[255, 165, 0])
-        threading.Thread(target=self._run_evaluation, daemon=True).start()
+    def _multi_preset_clean(self):
+        """Set the validated clean mix (0 loop + 3 loop + 7 arc) and its params."""
+        for d in range(10):
+            dpg.set_value(self.multi_include[d], d in (0, 3, 7))
+            dpg.set_value(self.multi_start[d], 0)
+            dpg.set_value(self.multi_end[d], 180 if d == 7 else 360)
+            dpg.set_value(self.multi_samples[d], 360)
+        dpg.set_value(self.n_comp_in, 90)
+        dpg.set_value(self.pca_dim_in, 40)
+        dpg.set_value(self.noise_in, 0.15)
+        dpg.set_value(self.seed_in, 0)
 
-    def _run_evaluation(self):
-        # experiment artifacts should be reproducible, so fall back to a fixed
-        # seed when the UI is set to "random"
+    def _current_specs(self):
+        """Read the per-digit table into a list of dataset specs."""
+        specs = []
+        for d in range(10):
+            if dpg.get_value(self.multi_include[d]):
+                specs.append({
+                    "digit": d,
+                    "start": float(dpg.get_value(self.multi_start[d])),
+                    "end": float(dpg.get_value(self.multi_end[d])),
+                    "samples": int(dpg.get_value(self.multi_samples[d])),
+                })
+        return specs
+
+    def _run_multi_evaluation_threaded(self):
+        dpg.set_value(self.multi_eval_lbl, "Starting multi-factor evaluation...")
+        dpg.configure_item(self.multi_eval_lbl, color=[255, 165, 0])
+        threading.Thread(target=self._run_multi_evaluation, daemon=True).start()
+
+    def _run_multi_evaluation(self):
+        specs = self._current_specs()
+        if len(specs) < 2:
+            dpg.set_value(self.multi_eval_lbl, "Select at least two digits.")
+            dpg.configure_item(self.multi_eval_lbl, color=[255, 0, 0])
+            return
+
         seed = self._seed_value()
         seed = 0 if seed is None else seed
         try:
-            comparison, out_dir = run_evaluation(
-                digit=dpg.get_value(self.digit_in),
-                n_angles=dpg.get_value(self.n_angles_in),
-                noise=dpg.get_value(self.noise_in) or 0.15,  # 0 -> default for the denoising leg
+            summary, out_dir = run_multi_evaluation(
+                specs=specs,
+                noise=dpg.get_value(self.noise_in) or 0.15,
                 n_components=dpg.get_value(self.n_comp_in),
                 pca_dim=dpg.get_value(self.pca_dim_in),
                 lambda_aniso=dpg.get_value(self.lambda_in),
                 n_neighbors=dpg.get_value(self.k_distance_in),
                 interp_tangent_weight=dpg.get_value(self.interp_w_in),
                 seed=seed,
-                progress=lambda msg: dpg.set_value(self.eval_lbl, msg),
+                progress=lambda msg: dpg.set_value(self.multi_eval_lbl, msg),
             )
-            dpg.set_value(
-                self.eval_lbl,
-                f"Done. Saved to:\n{out_dir}\n\n{_format_comparison(comparison)}")
-            dpg.configure_item(self.eval_lbl, color=[0, 255, 0])
+            dpg.set_value(self.multi_eval_lbl, f"Done. Results saved to:\n{out_dir}")
+            dpg.configure_item(self.multi_eval_lbl, color=[0, 255, 0])
         except Exception as exc:
-            dpg.set_value(self.eval_lbl, f"Evaluation failed: {exc}")
-            dpg.configure_item(self.eval_lbl, color=[255, 0, 0])
+            dpg.set_value(self.multi_eval_lbl, f"Multi evaluation failed: {exc}")
+            dpg.configure_item(self.multi_eval_lbl, color=[255, 0, 0])
 
     def _train(self):
         C = dpg.get_value(self.n_comp_in)
@@ -501,7 +567,7 @@ class MNISTDemoTab:
             pca_dim=pca_dim if pca_dim > 0 else None,
             lambda_aniso=dpg.get_value(self.lambda_in),
             n_neighbors=dpg.get_value(self.k_distance_in),
-            detection=dpg.get_value(self.detection_in),
+            detection="tda",
             interp_tangent_weight=dpg.get_value(self.interp_w_in),
             seed=self._seed_value(),
         )
@@ -511,17 +577,66 @@ class MNISTDemoTab:
         atlas_summary(exp.model.means, exp.tangents, exp.variances, exp.noise_)
 
         res = exp.detect()
-        # method-agnostic: TDA's result dict has no top-level "spline" key,
-        # so read the first detected curve's spline (single structure for MNIST).
-        curves = res["curves"]
-        self.spline = curves[0]["spline"] if curves else None
+        self.curves = res["curves"]
+        self.diagram = exp.structure_.get("diagram")
+        self._build_component_projections()
+        self._set_component_selector()
 
-        n_struct = len(curves)
-        txt = f"training done. {n_struct} structure(s) detected."
+        self.selected_component = 0
+        self.spline = self.curves[0]["spline"] if self.curves else None
+
+        n_struct = len(self.curves)
+        txt = f"training done. {n_struct} component(s) detected."
         dpg.set_value(self.train_lbl, txt)
         dpg.configure_item(self.train_lbl, color=[0, 255, 0])
 
-        dpg.set_value(self.mode_var, "spline")
+        dpg.set_value(self.mode_var, "spline" if self.spline is not None else "pca")
+        self._request_async_plot()
+
+    def _component_labels(self):
+        """One label per detected curve, e.g. '0: loop (digit 3)'."""
+        if not self.curves:
+            return []
+        # majority ground-truth digit per detected component (for the label only)
+        t, cid = self.exp.transform(self.X)
+        labels = []
+        for j, curve in enumerate(self.curves):
+            members = self.digit_id[cid == j] if self.digit_id is not None else []
+            if len(members):
+                vals, counts = np.unique(members, return_counts=True)
+                digit = int(vals[np.argmax(counts)])
+                labels.append(f"{j}: {curve['type']} (digit {digit})")
+            else:
+                labels.append(f"{j}: {curve['type']}")
+        return labels
+
+    def _set_component_selector(self):
+        labels = self._component_labels()
+        if not labels:
+            labels = ["-"]
+        self.component_label_to_idx = {lab: i for i, lab in enumerate(labels)}
+        dpg.configure_item(self.component_var, items=labels, default_value=labels[0])
+
+    def _build_component_projections(self):
+        """Sample every detected curve and project it into the 3D PCA space."""
+        self.curve_projections = []
+        if not self.curves:
+            return
+        ts = np.linspace(0.0, 1.0, 200)
+        for curve in self.curves:
+            spline = curve.get("spline")
+            if spline is None:
+                self.curve_projections.append(None)
+                continue
+            pts_px = self.exp.reconstruct(np.asarray(spline(ts)))
+            self.curve_projections.append(pts_px @ self.pca_basis)
+
+    def _on_component_change(self, sender=None, app_data=None):
+        if not self.curves:
+            return
+        idx = self.component_label_to_idx.get(dpg.get_value(self.component_var), 0)
+        self.selected_component = idx
+        self.spline = self.curves[idx].get("spline")
         self._request_async_plot()
 
     def _request_async_plot(self):
@@ -533,13 +648,14 @@ class MNISTDemoTab:
 
         state = {
             "mode": dpg.get_value(self.mode_var),
-            "is_3d": dpg.get_value(self.dim_var) == "3D",
             "t": dpg.get_value(self.t_slider),
             "width": self.tex_w,
             "height": self.tex_h,
-            "digit": dpg.get_value(self.digit_in),
+            "digit": self.data_label,
             "elev": self.elev,
-            "azim": self.azim
+            "azim": self.azim,
+            "overlay_curves": self.curve_projections,
+            "selected_component": self.selected_component,
         }
         self.plot_queue.put(state)
 
@@ -567,6 +683,8 @@ class MNISTDemoTab:
                 render_pca_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self._spline_to_pixel)
             elif mode == "spline":
                 render_spline_frame(fig, state, self.pca_data, self.angles, self.exp, self.pca_basis, self.spline, self._spline_to_pixel, self.pixel_mean, self.pixel_std)
+            elif mode == "persistence":
+                render_persistence_frame(fig, self.diagram, self.curves, self.selected_component)
 
             canvas.draw()
             w, h = canvas.get_width_height()

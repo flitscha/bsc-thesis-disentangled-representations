@@ -59,6 +59,18 @@ def _load_mnist_images(
     return [img] * n_images
 
 
+def _rotate_frames(img: np.ndarray, angles: np.ndarray) -> list:
+    """Rotate one (28, 28) image through `angles` (deg); return list of (900,) frames."""
+    padded = np.pad(img, 3, mode="constant", constant_values=0.0)
+    frames = []
+    for angle in angles:
+        rotated = scipy_rotate(padded, angle, reshape=False,
+                               mode="constant", cval=0.0, order=1)
+        rotated = rotated[2:-2, 2:-2]
+        frames.append(rotated.flatten().astype(float))
+    return frames
+
+
 def make_rotation_dataset(
     digit: int = 3,
     n_angles: int = 360,
@@ -117,4 +129,92 @@ def make_rotation_dataset(
         X = (X - pixel_mean) / pixel_std
 
     return X, angles_out, pixel_mean, pixel_std
+
+
+def make_multi_rotation_dataset(
+    specs: list,
+    samples_per: int = 120,
+    center: bool = True,
+    add_noise: float = 0.15,
+    random_state: int = 0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, list, np.ndarray, np.ndarray]:
+    """
+    Several rotating digits stacked into one dataset, each with its own angle
+    range. Different digits form separate connected components; a digit swept
+    over the full circle (0..360) is a loop, a partial sweep is an open arc.
+
+    Parameters
+    ----------
+    specs : list of dict
+        One entry per component. Recognised keys:
+            digit       : int, which MNIST digit
+            start, end  : float, angle range in degrees (default 0, 360)
+            samples     : int, frames for this component (default samples_per)
+            image_index : int, which exemplar image of that digit (default 0)
+        A spec is a loop iff start == 0 and end == 360.
+    samples_per : int
+        Default number of rotated frames per component (per-spec "samples"
+        overrides it).
+    center, add_noise, random_state : see make_rotation_dataset. Noise is added
+        (in pixel space) before a single joint standardization over all frames.
+
+    Returns
+    -------
+    X          : (n_specs * samples_per, 900) standardized (+ noise) frames
+    angles     : (N,) per-frame angle in degrees (within its component's range)
+    digit_id   : (N,) the digit value (0..9) each frame belongs to; the discrete
+                 ground-truth factor / class label
+    meta       : list of dict, one per spec, enriched with "is_loop", "digit",
+                 "start", "end" and the sample index range "sl" (slice)
+    pixel_mean : (900,) joint per-pixel mean (0 if center=False)
+    pixel_std  : (900,) joint global scale, broadcast to every pixel
+    """
+    rng = np.random.default_rng(random_state)
+    frames, angle_list, digit_list, meta = [], [], [], []
+
+    for spec in specs:
+        digit = int(spec["digit"])
+        start = float(spec.get("start", 0.0))
+        end = float(spec.get("end", 360.0))
+        image_index = int(spec.get("image_index", 0))
+        n = int(spec.get("samples", samples_per))
+        is_loop = (start == 0.0 and end == 360.0)
+
+        images = _load_mnist_images(digit, n_images=image_index + 1)
+        img = images[min(image_index, len(images) - 1)]
+
+        # a loop closes at 360==0, so drop the duplicate endpoint; an arc keeps it
+        grid = np.linspace(start, end, n, endpoint=not is_loop)
+        offset = len(frames)
+        frames.extend(_rotate_frames(img, grid))
+        angle_list.extend(grid.tolist())
+        digit_list.extend([digit] * n)
+        meta.append({
+            "digit": digit, "start": start, "end": end, "is_loop": is_loop,
+            "sl": slice(offset, offset + n),
+        })
+
+    X = np.stack(frames)
+    angles_out = np.array(angle_list)
+    digit_id = np.array(digit_list, dtype=int)
+
+    # clean images in [0, 1] (removes rotation-interpolation over/undershoot)
+    X = np.clip(X, 0.0, 1.0)
+
+    # Joint standardization parameters over all components' clean frames.
+    pixel_mean = np.zeros(X.shape[1])
+    pixel_std = np.ones(X.shape[1])
+    if center:
+        pixel_mean = X.mean(axis=0)
+        scale = float((X - pixel_mean).std())
+        scale = scale if scale > 1e-8 else 1.0
+        pixel_std = np.full(X.shape[1], scale)
+
+    if add_noise > 0:
+        X = X + rng.normal(0, add_noise, size=X.shape)
+
+    if center:
+        X = (X - pixel_mean) / pixel_std
+
+    return X, angles_out, digit_id, meta, pixel_mean, pixel_std
 
