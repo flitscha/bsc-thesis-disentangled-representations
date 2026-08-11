@@ -16,6 +16,7 @@ from data.mnist_rotation import make_rotation_dataset
 from core.pipeline import ManifoldPipeline
 from core.mfa import atlas_summary
 from visualization.mnist import render_samples_frame, render_pca_frame, render_spline_frame
+from experiments.mnist_rotation_eval import run_evaluation, _format_comparison
 
 DPI = 100
 MIN_TEX = 250
@@ -176,6 +177,21 @@ class MNISTDemoTab:
             dpg.add_spacer(height=10)
             dpg.add_button(label="Train + Build Spline", callback=self._train_threaded, width=-1)
             self.train_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
+
+            dpg.add_spacer(height=10)
+
+            # Evaluation Section (offline, saved to disk)
+            dpg.add_text("Evaluation", color=[0, 255, 255])
+            dpg.add_separator()
+            dpg.add_text(
+                "Runs the full offline evaluation for the current settings: "
+                "capacity + denoising x TDA vs. MST baseline. Saves summary, "
+                "metrics and figures under results/mnist_rotation/ (not shown here).",
+                wrap=280, color=[150, 150, 150],
+            )
+            dpg.add_button(label="Run full evaluation (save to disk)",
+                           callback=self._run_evaluation_threaded, width=-1)
+            self.eval_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=280)
 
             dpg.add_spacer(height=10)
 
@@ -444,6 +460,37 @@ class MNISTDemoTab:
         dpg.set_value(self.train_lbl, "Training...")
         dpg.configure_item(self.train_lbl, color=[255, 165, 0])
         threading.Thread(target=self._train, daemon=True).start()
+
+    def _run_evaluation_threaded(self):
+        dpg.set_value(self.eval_lbl, "Starting evaluation...")
+        dpg.configure_item(self.eval_lbl, color=[255, 165, 0])
+        threading.Thread(target=self._run_evaluation, daemon=True).start()
+
+    def _run_evaluation(self):
+        # experiment artifacts should be reproducible, so fall back to a fixed
+        # seed when the UI is set to "random"
+        seed = self._seed_value()
+        seed = 0 if seed is None else seed
+        try:
+            comparison, out_dir = run_evaluation(
+                digit=dpg.get_value(self.digit_in),
+                n_angles=dpg.get_value(self.n_angles_in),
+                noise=dpg.get_value(self.noise_in) or 0.15,  # 0 -> default for the denoising leg
+                n_components=dpg.get_value(self.n_comp_in),
+                pca_dim=dpg.get_value(self.pca_dim_in),
+                lambda_aniso=dpg.get_value(self.lambda_in),
+                n_neighbors=dpg.get_value(self.k_distance_in),
+                interp_tangent_weight=dpg.get_value(self.interp_w_in),
+                seed=seed,
+                progress=lambda msg: dpg.set_value(self.eval_lbl, msg),
+            )
+            dpg.set_value(
+                self.eval_lbl,
+                f"Done. Saved to:\n{out_dir}\n\n{_format_comparison(comparison)}")
+            dpg.configure_item(self.eval_lbl, color=[0, 255, 0])
+        except Exception as exc:
+            dpg.set_value(self.eval_lbl, f"Evaluation failed: {exc}")
+            dpg.configure_item(self.eval_lbl, color=[255, 0, 0])
 
     def _train(self):
         C = dpg.get_value(self.n_comp_in)
