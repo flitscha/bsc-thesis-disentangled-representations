@@ -1,0 +1,61 @@
+{
+  "experiment": "mnist_rotation",
+  "run_name": "digit6_seed0/denoising_tda",
+  "timestamp": "2026-08-12T11:40:40",
+  "kind": "loop",
+  "params": {
+    "pca_dim": 20,
+    "n_components": 24,
+    "latent_dim": 1,
+    "cov_type": "mfa",
+    "shared": false,
+    "seed": 0,
+    "lambda_aniso": 30.0,
+    "n_neighbors": 4,
+    "detection": "tda",
+    "interp_tangent_weight": 3.0
+  },
+  "extra": {
+    "digit": 6,
+    "seed": 0,
+    "mode": "denoising",
+    "method": "tda",
+    "noise": 0.2500000596046448
+  },
+  "metrics": {
+    "topology": {
+      "n_components": 1,
+      "n_components_expected": 1,
+      "components_match": true,
+      "n_loops": 1,
+      "n_paths": 0,
+      "n_loops_expected": 1,
+      "n_paths_expected": 0,
+      "loops_match": true,
+      "paths_match": true,
+      "n_detected": 1,
+      "types_detected": [
+        "loop"
+      ],
+      "n_expected": 1,
+      "types_expected": [
+        "loop"
+      ],
+      "match": true
+    },
+    "angle_error": {
+      "mean": 4.722096569445065,
+      "median": 4.576959583351936,
+      "max": 10.430852916648064,
+      "s": 1.0,
+      "delta_deg": 55.50897791664805
+    },
+    "reconstruction": {
+      "full": 0.3772482685685765,
+      "mfa_floor": 0.38447562972650606,
+      "pca_floor": 0.43178889484116645,
+      "input_error": 1.2526332125276023
+    },
+    "ari": null
+  }
+}

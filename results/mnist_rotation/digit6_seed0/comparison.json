@@ -1,0 +1,71 @@
+{
+  "experiment": "mnist_rotation",
+  "tag": "digit6_seed0",
+  "timestamp": "2026-08-12T11:40:42",
+  "config": {
+    "digit": 6,
+    "n_angles": 360,
+    "noise": 0.2500000596046448,
+    "n_components": 24,
+    "pca_dim": 20,
+    "latent_dim": 1,
+    "lambda_aniso": 30.0,
+    "n_neighbors": 4,
+    "interp_tangent_weight": 3.0,
+    "seed": 0
+  },
+  "runs": {
+    "capacity_tda": {
+      "topology_match": true,
+      "n_detected": 1,
+      "types_detected": [
+        "loop"
+      ],
+      "angle_mean_deg": 1.5275451194394347,
+      "angle_median_deg": 1.4490623055053788,
+      "angle_max_deg": 4.199375194494621,
+      "recon_full": 0.22986658037175473,
+      "recon_mfa_floor": 0.20802811662940285,
+      "recon_pca_floor": 0.19448750609537815
+    },
+    "capacity_traversal": {
+      "topology_match": true,
+      "n_detected": 1,
+      "types_detected": [
+        "loop"
+      ],
+      "angle_mean_deg": 2.270444577119306,
+      "angle_median_deg": 2.15625,
+      "angle_max_deg": 4.955309088360707,
+      "recon_full": 0.21947800137212306,
+      "recon_mfa_floor": 0.20802811662940285,
+      "recon_pca_floor": 0.19448750609537815
+    },
+    "denoising_tda": {
+      "topology_match": true,
+      "n_detected": 1,
+      "types_detected": [
+        "loop"
+      ],
+      "angle_mean_deg": 4.722096569445065,
+      "angle_median_deg": 4.576959583351936,
+      "angle_max_deg": 10.430852916648064,
+      "recon_full": 0.3772482685685765,
+      "recon_mfa_floor": 0.38447562972650606,
+      "recon_pca_floor": 0.43178889484116645
+    },
+    "denoising_traversal": {
+      "topology_match": true,
+      "n_detected": 1,
+      "types_detected": [
+        "loop"
+      ],
+      "angle_mean_deg": 5.870834147518945,
+      "angle_median_deg": 4.8984375,
+      "angle_max_deg": 12.990271013352526,
+      "recon_full": 0.36951348893427893,
+      "recon_mfa_floor": 0.38447562972650606,
+      "recon_pca_floor": 0.43178889484116645
+    }
+  }
+}

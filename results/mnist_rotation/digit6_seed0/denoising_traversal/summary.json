@@ -1,0 +1,61 @@
+{
+  "experiment": "mnist_rotation",
+  "run_name": "digit6_seed0/denoising_traversal",
+  "timestamp": "2026-08-12T11:40:41",
+  "kind": "loop",
+  "params": {
+    "pca_dim": 20,
+    "n_components": 24,
+    "latent_dim": 1,
+    "cov_type": "mfa",
+    "shared": false,
+    "seed": 0,
+    "lambda_aniso": 30.0,
+    "n_neighbors": 4,
+    "detection": "traversal",
+    "interp_tangent_weight": 3.0
+  },
+  "extra": {
+    "digit": 6,
+    "seed": 0,
+    "mode": "denoising",
+    "method": "traversal",
+    "noise": 0.2500000596046448
+  },
+  "metrics": {
+    "topology": {
+      "n_components": 1,
+      "n_components_expected": 1,
+      "components_match": true,
+      "n_loops": 1,
+      "n_paths": 0,
+      "n_loops_expected": 1,
+      "n_paths_expected": 0,
+      "loops_match": true,
+      "paths_match": true,
+      "n_detected": 1,
+      "types_detected": [
+        "loop"
+      ],
+      "n_expected": 1,
+      "types_expected": [
+        "loop"
+      ],
+      "match": true
+    },
+    "angle_error": {
+      "mean": 5.870834147518945,
+      "median": 4.8984375,
+      "max": 12.990271013352526,
+      "s": 1.0,
+      "delta_deg": 55.959021013352526
+    },
+    "reconstruction": {
+      "full": 0.36951348893427893,
+      "mfa_floor": 0.38447562972650606,
+      "pca_floor": 0.43178889484116645,
+      "input_error": 1.2526332125276023
+    },
+    "ari": null
+  }
+}
