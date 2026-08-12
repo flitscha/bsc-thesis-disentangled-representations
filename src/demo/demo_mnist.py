@@ -19,7 +19,11 @@ from visualization.mnist import (
     render_samples_frame, render_pca_frame, render_spline_frame,
     render_persistence_frame,
 )
-from experiments.multi_factor_eval import run_evaluation as run_multi_evaluation
+from experiments.multi_factor_eval import (
+    run_evaluation as run_multi_evaluation,
+    _component_labels as _observation_components,
+)
+from experiments.mnist_rotation_eval import run_evaluation as run_single_evaluation
 
 DPI = 100
 MIN_TEX = 250
@@ -77,9 +81,9 @@ class MNISTDemoTab:
 
         # Multi-component visualization state
         self.digit_id = None
-        self.diagram = None                # persistence diagram of the detection
-        self.curves = None                 # detected curves (with splines)
-        self.curve_projections = None      # each curve sampled + projected to PCA space
+        self.diagram = None # persistence diagram of the detection
+        self.curves = None # detected curves (with splines)
+        self.curve_projections = None # each curve sampled + projected to PCA space
         self.selected_component = 0
         self.component_var = None
         self.component_label_to_idx = {}
@@ -117,7 +121,7 @@ class MNISTDemoTab:
             dpg.add_text("Data (digits to rotate)", color=[0, 255, 255])
             dpg.add_separator()
             dpg.add_button(
-                label="Preset: clean mix (0 loop + 3 loop + 7 arc)",
+                label="Preset: multi-factor (1, 3, 9 loop + 6 arc)",
                 callback=self._multi_preset_clean, width=-1,
             )
             with dpg.group(horizontal=True):
@@ -128,7 +132,7 @@ class MNISTDemoTab:
                 dpg.add_text("  samples", color=[150, 150, 150])
             for d in range(10):
                 with dpg.group(horizontal=True):
-                    self.multi_include[d] = dpg.add_checkbox(default_value=(d == 3))
+                    self.multi_include[d] = dpg.add_checkbox(default_value=(d == 6))
                     dpg.add_text(f"  {d}  ")
                     self.multi_start[d] = dpg.add_input_int(
                         default_value=0, width=70, step=0)
@@ -178,7 +182,7 @@ class MNISTDemoTab:
             )
             with dpg.tooltip(self.lambda_in):
                 dpg.add_text("Penalty for moving off the tangent space.", wrap=260)
-            self.k_distance_in = dpg.add_input_int(label="k - distance graph", default_value=5, width=_width)
+            self.k_distance_in = dpg.add_input_int(label="k - distance graph", default_value=4, width=_width)
             with dpg.tooltip(self.k_distance_in):
                 dpg.add_text(
                     "Neighbors of the k-NN graph whose shortest paths give the "
@@ -211,10 +215,11 @@ class MNISTDemoTab:
                                       callback=self._run_multi_evaluation_threaded, width=-1)
             with dpg.tooltip(eval_btn):
                 dpg.add_text(
-                    "Offline evaluation for the current table (TDA, one noisy "
-                    "regime): topology (M1), ARI (M4), per-component angle error "
-                    "(M2) + persistence and component-scatter figures under "
-                    "results/mnist_multi/.",
+                    "Offline evaluation of the current table. One selected digit "
+                    "runs the single-component experiment (capacity + "
+                    "denoising, TDA vs. MST) into results/mnist_rotation/. Two or "
+                    "more digits run the multi-factor evaluation (topology M1, ARI "
+                    "M4, per-component angle M2 + figures) into results/mnist_multi/.",
                     wrap=260,
                 )
             self.multi_eval_lbl = dpg.add_text("-", color=[150, 150, 150], wrap=320)
@@ -502,16 +507,22 @@ class MNISTDemoTab:
         threading.Thread(target=self._train, daemon=True).start()
 
     def _multi_preset_clean(self):
-        """Set the validated clean mix (0 loop + 3 loop + 7 arc) and its params."""
+        """
+        Load the multi-digit experiment, described in the thesis: digits 1, 3, 9 as
+        full loops and 6 as a half arc, with its fitted parameters
+        """
         for d in range(10):
-            dpg.set_value(self.multi_include[d], d in (0, 3, 7))
+            dpg.set_value(self.multi_include[d], d in (1, 3, 6, 9))
             dpg.set_value(self.multi_start[d], 0)
-            dpg.set_value(self.multi_end[d], 180 if d == 7 else 360)
+            dpg.set_value(self.multi_end[d], 180 if d == 6 else 360)
             dpg.set_value(self.multi_samples[d], 360)
-        dpg.set_value(self.n_comp_in, 90)
-        dpg.set_value(self.pca_dim_in, 40)
+        dpg.set_value(self.n_comp_in, 200)
+        dpg.set_value(self.pca_dim_in, 60)
         dpg.set_value(self.noise_in, 0.15)
         dpg.set_value(self.seed_in, 0)
+        dpg.set_value(self.lambda_in, 30.0)
+        dpg.set_value(self.k_distance_in, 4)
+        dpg.set_value(self.interp_w_in, 3.0)
 
     def _current_specs(self):
         """Read the per-digit table into a list of dataset specs."""
@@ -533,17 +544,33 @@ class MNISTDemoTab:
 
     def _run_multi_evaluation(self):
         specs = self._current_specs()
-        if len(specs) < 2:
-            dpg.set_value(self.multi_eval_lbl, "Select at least two digits.")
+        if len(specs) == 0:
+            dpg.set_value(self.multi_eval_lbl, "Select at least one digit.")
             dpg.configure_item(self.multi_eval_lbl, color=[255, 0, 0])
             return
 
         seed = self._seed_value()
-        seed = 0 if seed is None else seed
+        if seed is None: # -1 = "random each run": draw a concrete seed so the
+            seed = int(np.random.randint(2**31)) # saved run stays reproducible
+
+        # single selected digit -> use the one-omponent experiment.
+        # It is defined only for a full 0-360 loop, so refuse a single-digit arc
+        if len(specs) == 1:
+            s = specs[0]
+            if float(s.get("start", 0.0)) != 0.0 or float(s.get("end", 360.0)) != 360.0:
+                dpg.set_value(
+                    self.multi_eval_lbl,
+                    "Single-digit evaluation covers a full 0-360 loop only."
+                )
+                dpg.configure_item(self.multi_eval_lbl, color=[255, 0, 0])
+                return
+            self._run_single_evaluation(s, seed)
+            return
+
         try:
             summary, out_dir = run_multi_evaluation(
                 specs=specs,
-                noise=dpg.get_value(self.noise_in) or 0.15,
+                noise=dpg.get_value(self.noise_in),
                 n_components=dpg.get_value(self.n_comp_in),
                 pca_dim=dpg.get_value(self.pca_dim_in),
                 lambda_aniso=dpg.get_value(self.lambda_in),
@@ -556,6 +583,27 @@ class MNISTDemoTab:
             dpg.configure_item(self.multi_eval_lbl, color=[0, 255, 0])
         except Exception as exc:
             dpg.set_value(self.multi_eval_lbl, f"Multi evaluation failed: {exc}")
+            dpg.configure_item(self.multi_eval_lbl, color=[255, 0, 0])
+
+    def _run_single_evaluation(self, spec, seed):
+        """One-component experiment: the rotating-digit evaluation on the single selected digit."""
+        try:
+            _, out_dir = run_single_evaluation(
+                digit=int(spec["digit"]),
+                n_angles=int(spec.get("samples", 360)),
+                noise=dpg.get_value(self.noise_in),
+                n_components=dpg.get_value(self.n_comp_in),
+                pca_dim=dpg.get_value(self.pca_dim_in),
+                lambda_aniso=dpg.get_value(self.lambda_in),
+                n_neighbors=dpg.get_value(self.k_distance_in),
+                interp_tangent_weight=dpg.get_value(self.interp_w_in),
+                seed=seed,
+                progress=lambda msg: dpg.set_value(self.multi_eval_lbl, msg),
+            )
+            dpg.set_value(self.multi_eval_lbl, f"Done. Results saved to:\n{out_dir}")
+            dpg.configure_item(self.multi_eval_lbl, color=[0, 255, 0])
+        except Exception as exc:
+            dpg.set_value(self.multi_eval_lbl, f"Evaluation failed: {exc}")
             dpg.configure_item(self.multi_eval_lbl, color=[255, 0, 0])
 
     def _train(self):
@@ -585,8 +633,15 @@ class MNISTDemoTab:
         self.selected_component = 0
         self.spline = self.curves[0]["spline"] if self.curves else None
 
-        n_struct = len(self.curves)
-        txt = f"training done. {n_struct} component(s) detected."
+        # report the two homology levels separately: H0 = how many separate connected components,
+        # H1 = how many loops (a component may hold several loops)
+        n_components = int(np.unique(_observation_components(self.exp, self.X)).size)
+        n_loops = sum(c["type"] == "loop" for c in self.curves)
+        n_paths = sum(c["type"] == "path" for c in self.curves)
+        txt = f"training done. H0: {n_components} component(s), H1: {n_loops} loop(s)"
+        if n_paths:
+            txt += f" (+{n_paths} open path(s))"
+        txt += "."
         dpg.set_value(self.train_lbl, txt)
         dpg.configure_item(self.train_lbl, color=[0, 255, 0])
 
@@ -594,20 +649,22 @@ class MNISTDemoTab:
         self._request_async_plot()
 
     def _component_labels(self):
-        """One label per detected curve, e.g. '0: loop (digit 3)'."""
+        """One label per detected structure"""
         if not self.curves:
             return []
-        # majority ground-truth digit per detected component (for the label only)
+        # majority ground-truth digit per detected structure (for the label only)
         t, cid = self.exp.transform(self.X)
         labels = []
         for j, curve in enumerate(self.curves):
+            comp = curve.get("component")
+            where = f" in H0 comp {comp}" if comp is not None else ""
             members = self.digit_id[cid == j] if self.digit_id is not None else []
             if len(members):
                 vals, counts = np.unique(members, return_counts=True)
                 digit = int(vals[np.argmax(counts)])
-                labels.append(f"{j}: {curve['type']} (digit {digit})")
+                labels.append(f"{j}: {curve['type']}{where} (digit {digit})")
             else:
-                labels.append(f"{j}: {curve['type']}")
+                labels.append(f"{j}: {curve['type']}{where}")
         return labels
 
     def _set_component_selector(self):

@@ -191,9 +191,11 @@ def _strip_figures(
         rows = [("noisy", np.stack([X_input[i] for i in idx])), ("recon", recon)]
         recon_strip = make(rows, labels, "Denoising")
 
-    # visual factor-residual strip
+    # visual factor-residual strip: top row is the actual input (noisy under
+    # noise), so the denoising by the reconstruction stays visible
     idx, recon, labels = pick(n_recovery_strip)
-    rows = [("true", np.stack([truth[i] for i in idx])), ("recon", recon)]
+    top_label = "noisy" if X_target is not None else "true"
+    rows = [(top_label, np.stack([X_input[i] for i in idx])), ("recon", recon)]
     recovery_strip = make(rows, labels, "Reconstruction at the estimated angle")
 
     return {"fig_reconstruction.pdf": recon_strip,

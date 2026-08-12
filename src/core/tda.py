@@ -121,7 +121,7 @@ def extract_loop(distance_matrix, birth_edge, birth_scale):
 
 def detect_tda(
     distance_matrix, min_persistence_h0=None, min_persistence_h1=None,
-    component_gap_factor_h0=0.5, prominence_ratio_h1=2.0,
+    component_gap_factor_h0=0.5, prominence_ratio_h1=1.8,
 ):
     """
     Detect connected components (H0) and loops (H1) from a distance matrix

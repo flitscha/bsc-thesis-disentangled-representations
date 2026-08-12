@@ -1,0 +1,237 @@
+{
+  "experiment": "mnist_multi",
+  "tag": "1loop_3loop_6arc_9loop_seed0",
+  "timestamp": "2026-08-12T11:41:17",
+  "config": {
+    "specs": [
+      {
+        "digit": 1,
+        "start": 0.0,
+        "end": 360.0,
+        "samples": 360
+      },
+      {
+        "digit": 3,
+        "start": 0.0,
+        "end": 360.0,
+        "samples": 360
+      },
+      {
+        "digit": 6,
+        "start": 0.0,
+        "end": 180.0,
+        "samples": 360
+      },
+      {
+        "digit": 9,
+        "start": 0.0,
+        "end": 360.0,
+        "samples": 360
+      }
+    ],
+    "samples_per": 120,
+    "noise": 0.15000000596046448,
+    "n_components": 200,
+    "pca_dim": 60,
+    "lambda_aniso": 30.0,
+    "n_neighbors": 4,
+    "interp_tangent_weight": 3.0,
+    "seed": 0
+  },
+  "metrics": {
+    "topology": {
+      "n_components": 2,
+      "n_components_expected": 4,
+      "components_match": false,
+      "n_loops": 7,
+      "n_paths": 1,
+      "n_loops_expected": 3,
+      "n_paths_expected": 1,
+      "loops_match": false,
+      "paths_match": true,
+      "n_detected": 8,
+      "types_detected": [
+        "loop",
+        "loop",
+        "loop",
+        "loop",
+        "loop",
+        "loop",
+        "loop",
+        "path"
+      ],
+      "n_expected": 4,
+      "types_expected": [
+        "loop",
+        "loop",
+        "path",
+        "loop"
+      ],
+      "match": false
+    },
+    "ari": 0.3328697264719518,
+    "per_component_angle": [
+      {
+        "curve": 0,
+        "type": "loop",
+        "n": 312,
+        "majority_digit": 9,
+        "purity": 1.0,
+        "angle_mean_deg": 1.1564450660741972,
+        "angle_median_deg": 1.1566598462126194,
+        "angle_max_deg": 2.9847848462126194
+      },
+      {
+        "curve": 1,
+        "type": "loop",
+        "n": 77,
+        "majority_digit": 6,
+        "purity": 0.8831168831168831,
+        "angle_mean_deg": 12.280071804229685,
+        "angle_median_deg": 3.2019211499150515,
+        "angle_max_deg": 179.55726234590668
+      },
+      {
+        "curve": 2,
+        "type": "loop",
+        "n": 290,
+        "majority_digit": 3,
+        "purity": 1.0,
+        "angle_mean_deg": 1.258920870430405,
+        "angle_median_deg": 1.1343005713504226,
+        "angle_max_deg": 4.615699428649577
+      },
+      {
+        "curve": 3,
+        "type": "loop",
+        "n": 86,
+        "majority_digit": 3,
+        "purity": 0.5465116279069767,
+        "angle_mean_deg": 52.04681132390854,
+        "angle_median_deg": 38.40418005719323,
+        "angle_max_deg": 175.56824255719323
+      },
+      {
+        "curve": 4,
+        "type": "loop",
+        "n": 284,
+        "majority_digit": 1,
+        "purity": 1.0,
+        "angle_mean_deg": 1.4893844954543627,
+        "angle_median_deg": 1.1749651016521057,
+        "angle_max_deg": 4.817222398347894
+      },
+      {
+        "curve": 5,
+        "type": "loop",
+        "n": 60,
+        "majority_digit": 1,
+        "purity": 0.6166666666666667,
+        "angle_mean_deg": 51.544138132542166,
+        "angle_median_deg": 15.019456476266214,
+        "angle_max_deg": 179.04304352373367
+      },
+      {
+        "curve": 6,
+        "type": "loop",
+        "n": 39,
+        "majority_digit": 1,
+        "purity": 1.0,
+        "angle_mean_deg": 36.690270253640406,
+        "angle_median_deg": 33.801148555996576,
+        "angle_max_deg": 106.96447644400342
+      },
+      {
+        "curve": 7,
+        "type": "path",
+        "n": 292,
+        "majority_digit": 6,
+        "purity": 1.0,
+        "angle_mean_deg": 1.0903700625979917,
+        "angle_median_deg": 0.9006298530515373,
+        "angle_max_deg": 4.2784341973290125
+      }
+    ],
+    "matching": [
+      {
+        "digit": 1,
+        "type": "loop",
+        "curve": 4,
+        "n_overlap": 284
+      },
+      {
+        "digit": 3,
+        "type": "loop",
+        "curve": 2,
+        "n_overlap": 290
+      },
+      {
+        "digit": 6,
+        "type": "arc",
+        "curve": 7,
+        "n_overlap": 292
+      },
+      {
+        "digit": 9,
+        "type": "loop",
+        "curve": 0,
+        "n_overlap": 312
+      }
+    ],
+    "loops": {
+      "correct": [
+        {
+          "curve": 4,
+          "majority_digit": 1,
+          "persistence": 393.47845064174703,
+          "n": 284,
+          "angle_median_deg": 1.1749651016521057
+        },
+        {
+          "curve": 2,
+          "majority_digit": 3,
+          "persistence": 703.2529211301988,
+          "n": 290,
+          "angle_median_deg": 1.1343005713504226
+        },
+        {
+          "curve": 0,
+          "majority_digit": 9,
+          "persistence": 790.9883440025463,
+          "n": 312,
+          "angle_median_deg": 1.1566598462126194
+        }
+      ],
+      "extra": [
+        {
+          "curve": 1,
+          "majority_digit": 6,
+          "persistence": 756.9458154770779,
+          "n": 77,
+          "angle_median_deg": 3.2019211499150515
+        },
+        {
+          "curve": 3,
+          "majority_digit": 3,
+          "persistence": 568.9756414638715,
+          "n": 86,
+          "angle_median_deg": 38.40418005719323
+        },
+        {
+          "curve": 5,
+          "majority_digit": 1,
+          "persistence": 384.89836264496927,
+          "n": 60,
+          "angle_median_deg": 15.019456476266214
+        },
+        {
+          "curve": 6,
+          "majority_digit": 1,
+          "persistence": 322.24188101865957,
+          "n": 39,
+          "angle_median_deg": 33.801148555996576
+        }
+      ]
+    }
+  }
+}
