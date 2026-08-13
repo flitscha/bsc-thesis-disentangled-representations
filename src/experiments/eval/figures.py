@@ -44,8 +44,7 @@ def plot_persistence(diagram, title="Persistence diagram", h1_labels=None):
     ax.axhline(inf_y, color="gray", lw=0.5, ls=":")
     ax.text(0, inf_y, " inf", va="bottom", ha="left", color="gray", fontsize=8)
 
-    # annotate the significant H1 triangles with the loop identity from the
-    # sweep figures (unlabelled triangles near the diagonal are noise loops).
+    # annotate the significant H1 triangles with the loop identity from the sweep figures.
     for item in h1_labels or []:
         b, d = float(item["birth"]), float(item["death"])
         y = d if np.isfinite(d) else inf_y
@@ -61,18 +60,19 @@ def plot_persistence(diagram, title="Persistence diagram", h1_labels=None):
     return fig
 
 
+def _is_pruned(label):
+    """Charts no observation backs are labelled -1; class labels may be strings."""
+    return np.issubdtype(np.asarray(label).dtype, np.number) and label < 0
+
+
 def plot_component_scatter(
-    Z2, digit_id, component_id, title="Detected structure", subtitle=None
+    Z2, digit_id, component_id, title="Detected structure", subtitle=None,
+    label_name="ground-truth digit",
 ):
     """
     Two 2D scatter panels of the same low-dimensional embedding Z2 (N, 2):
     left coloured by the ground-truth digit, right by the detected H0 connected
-    component. This figure is about H0 only -- which observations fall into the
-    same separate structure; the H1 loops living inside those components are a
-    different question (see the persistence / sweep figures). Agreement between
-    the two panels is the visual counterpart of the ARI. Points with
-    component_id < 0 (pruned charts) are drawn in grey. `subtitle` (e.g. the
-    H0/H1 counts) is shown under the title.
+    component.
     """
     Z2 = np.asarray(Z2)
     digit_id = np.asarray(digit_id)
@@ -80,12 +80,12 @@ def plot_component_scatter(
 
     fig = Figure(figsize=(10, 4.8))
     for ax_i, (labels, name) in enumerate(
-        ((digit_id, "ground-truth digit"), (component_id, "detected H0 component"))
+        ((digit_id, label_name), (component_id, "detected H0 component"))
     ):
         ax = fig.add_subplot(1, 2, ax_i + 1)
         for lab in np.unique(labels):
             m = labels == lab
-            if lab < 0:
+            if _is_pruned(lab):
                 ax.scatter(Z2[m, 0], Z2[m, 1], s=10, c="lightgray", alpha=0.6)
             else:
                 ax.scatter(Z2[m, 0], Z2[m, 1], s=10, alpha=0.8, label=str(lab))
@@ -99,12 +99,13 @@ def plot_component_scatter(
 
 
 def plot_component_scatter_3d(
-    Z3, digit_id, component_id, title="Detected structure (3D)", subtitle=None
+    Z3, digit_id, component_id, title="Detected structure (3D)", subtitle=None,
+    label_name="ground-truth digit",
 ):
     """
     3D version of plot_component_scatter: two 3D-embedding panels (top-3 PCA),
-    left coloured by ground-truth digit, right by detected H0 connected
-    component (loops are H1 and shown elsewhere).
+    left coloured by the ground-truth class (`label_name`), right by detected H0
+    connected component.
     """
     Z3 = np.asarray(Z3)
     digit_id = np.asarray(digit_id)
@@ -112,12 +113,12 @@ def plot_component_scatter_3d(
 
     fig = Figure(figsize=(11, 5.2))
     for ax_i, (labels, name) in enumerate(
-        ((digit_id, "ground-truth digit"), (component_id, "detected H0 component"))
+        ((digit_id, label_name), (component_id, "detected H0 component"))
     ):
         ax = fig.add_subplot(1, 2, ax_i + 1, projection="3d")
         for lab in np.unique(labels):
             m = labels == lab
-            if lab < 0:
+            if _is_pruned(lab):
                 ax.scatter(Z3[m, 0], Z3[m, 1], Z3[m, 2], s=8, c="lightgray", alpha=0.6)
             else:
                 ax.scatter(Z3[m, 0], Z3[m, 1], Z3[m, 2], s=8, alpha=0.8, label=str(lab))
@@ -139,15 +140,12 @@ def _suptitle(fig, title, subtitle=None):
         fig.suptitle(title, fontsize=15)
 
 
-def plot_recovery_strips(components, image_shape, to_image=None, title=None,
-                         empty_note="Nothing to show."):
+def plot_recovery_strips(
+    components, image_shape, to_image=None, title=None, empty_note="Nothing to show."
+):
     """
     Per correct component two stacked rows: the ground-truth frame (top) and the
-    model reconstruction at the recovered coordinate (bottom), sampled on a grid
-    of true angles anchored at the start angle. The angle is written once, on the
-    top row, so it stays valid down the column. Each `components` entry is a dict
-    with 'label', 'angles' (K,), 'true_imgs' (K, D) and 'recon_imgs' (K, D); K may
-    differ per component (8 for a loop, 4 for a half arc).
+    model reconstruction at the recovered coordinate (bottom)
     """
     to_image = to_image or (lambda v: np.asarray(v).reshape(image_shape))
     if not components:
@@ -157,6 +155,9 @@ def plot_recovery_strips(components, image_shape, to_image=None, title=None,
                 fontsize=13, color="gray")
         ax.axis("off")
         return fig
+
+    def captions(c):
+        return c.get("labels") or [f"{a:.0f}°" for a in c["angles"]]
 
     n = len(components)
     max_cols = max(len(c["angles"]) for c in components)
@@ -178,7 +179,7 @@ def plot_recovery_strips(components, image_shape, to_image=None, title=None,
                 if col == 0:
                     ax.set_ylabel(row_label, rotation=0, ha="right", va="center", fontsize=9)
                 if is_top:
-                    ax.set_title(f"{c['angles'][col]:.0f}°", fontsize=8)
+                    ax.set_title(captions(c)[col], fontsize=8)
     if title:
         fig.suptitle(title, fontsize=13)
     return fig

@@ -1,0 +1,128 @@
+{
+  "experiment": "faces",
+  "tag": "Ayaw_Bsmile_Cjaw_open_seed0",
+  "timestamp": "2026-08-13T10:23:19",
+  "config": {
+    "specs": [
+      {
+        "face": 0,
+        "factor": "yaw",
+        "samples": 120,
+        "start": -90.0,
+        "end": 90.0
+      },
+      {
+        "face": 1,
+        "factor": "smile",
+        "samples": 120,
+        "start": 0.0,
+        "end": 1.0
+      },
+      {
+        "face": 2,
+        "factor": "jaw_open",
+        "samples": 120,
+        "start": 0.0,
+        "end": 1.0
+      }
+    ],
+    "samples_per": 120,
+    "image_size": 128,
+    "noise": 0.0,
+    "n_components": 90,
+    "pca_dim": 40,
+    "lambda_aniso": 30.0,
+    "n_neighbors": 4,
+    "interp_tangent_weight": 3.0,
+    "seed": 0
+  },
+  "metrics": {
+    "topology": {
+      "n_components": 3,
+      "n_components_expected": 3,
+      "components_match": true,
+      "n_loops": 0,
+      "n_paths": 3,
+      "n_loops_expected": 0,
+      "n_paths_expected": 3,
+      "loops_match": true,
+      "paths_match": true,
+      "n_detected": 3,
+      "types_detected": [
+        "path",
+        "path",
+        "path"
+      ],
+      "n_expected": 3,
+      "types_expected": [
+        "path",
+        "path",
+        "path"
+      ],
+      "match": true
+    },
+    "ari": 1.0,
+    "per_component_factor": [
+      {
+        "curve": 0,
+        "type": "path",
+        "n": 120,
+        "majority_face": 1,
+        "face": "B",
+        "factor": "smile",
+        "unit": "units",
+        "purity": 1.0,
+        "error_mean": 0.020084085824976672,
+        "error_median": 0.015821045009405593,
+        "error_max": 0.09205538268704971
+      },
+      {
+        "curve": 1,
+        "type": "path",
+        "n": 120,
+        "majority_face": 2,
+        "face": "C",
+        "factor": "jaw_open",
+        "unit": "units",
+        "purity": 1.0,
+        "error_mean": 0.007469338218280728,
+        "error_median": 0.0065090314400377824,
+        "error_max": 0.047530042487298085
+      },
+      {
+        "curve": 2,
+        "type": "path",
+        "n": 120,
+        "majority_face": 0,
+        "face": "A",
+        "factor": "yaw",
+        "unit": "deg",
+        "purity": 1.0,
+        "error_mean": 7.881719915855201,
+        "error_median": 7.808522867493018,
+        "error_max": 21.680242502968696
+      }
+    ],
+    "matching": [
+      {
+        "face": "A",
+        "factor": "yaw",
+        "curve": 2,
+        "n_overlap": 120
+      },
+      {
+        "face": "B",
+        "factor": "smile",
+        "curve": 0,
+        "n_overlap": 120
+      },
+      {
+        "face": "C",
+        "factor": "jaw_open",
+        "curve": 1,
+        "n_overlap": 120
+      }
+    ],
+    "n_extra_curves": 0
+  }
+}

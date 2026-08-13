@@ -8,7 +8,7 @@ import numpy as np
 from .spline import visualize_spline
 
 
-def _to_image(v, pixel_mean=None, pixel_std=None, shape=(30, 30)):
+def to_image(v, pixel_mean=None, pixel_std=None, shape=(30, 30)):
     """
     Invert the standardization (v * std + mean) to turn a standardized vector
     back into a displayable [0, 1] image.
@@ -30,7 +30,7 @@ def render_samples_frame(fig, X, angles, digit, pixel_mean=None, pixel_std=None)
     for k, i in enumerate(idx):
         r, c = divmod(k, cols)
         ax = axes[r, c]
-        ax.imshow(_to_image(X[i], pixel_mean, pixel_std), cmap="gray",
+        ax.imshow(to_image(X[i], pixel_mean, pixel_std), cmap="gray",
                   vmin=0, vmax=1, interpolation="nearest")
         ax.set_title(f"{angles[i]:.0f}°", fontsize=8)
         ax.axis("off")
@@ -119,6 +119,10 @@ def draw_pca_background_layer(fig, ax, state, pca_data, angles, exp, pca_basis, 
         draw_points=True,
         colors=angles,
         colorbar=True,
+        # the faces demo colours by something other than a rotation angle
+        cmap=state.get("cmap", "hsv"),
+        color_label=state.get("color_label", "Rotation angle"),
+        color_scale=state.get("color_scale", (0, 360)),
     )
 
     if exp is not None:
@@ -156,7 +160,7 @@ def render_spline_frame(fig, state, pca_data, angles, exp, pca_basis, spline, sp
 
     t = state["t"]
     point = spline_to_pixel_fn(t)
-    img = _to_image(point, pixel_mean, pixel_std)
+    img = to_image(point, pixel_mean, pixel_std)
 
     ax_img = fig.add_subplot(1, 2, 1)
     ax_pca = fig.add_subplot(1, 2, 2, projection='3d')
