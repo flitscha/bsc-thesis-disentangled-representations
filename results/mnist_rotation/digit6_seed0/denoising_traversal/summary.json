@@ -1,7 +1,7 @@
 {
   "experiment": "mnist_rotation",
   "run_name": "digit6_seed0/denoising_traversal",
-  "timestamp": "2026-08-12T11:40:41",
+  "timestamp": "2026-08-13T15:01:17",
   "kind": "loop",
   "params": {
     "pca_dim": 20,
@@ -51,8 +51,8 @@
       "delta_deg": 55.959021013352526
     },
     "reconstruction": {
-      "full": 0.36951348893427893,
-      "mfa_floor": 0.38447562972650606,
+      "full": 0.369513488934279,
+      "mfa_floor": 0.3844756297265061,
       "pca_floor": 0.43178889484116645,
       "input_error": 1.2526332125276023
     },

@@ -1,7 +1,7 @@
 {
   "experiment": "mnist_rotation",
   "run_name": "digit6_seed0/denoising_tda",
-  "timestamp": "2026-08-12T11:40:40",
+  "timestamp": "2026-08-13T15:01:16",
   "kind": "loop",
   "params": {
     "pca_dim": 20,
@@ -44,15 +44,15 @@
       "match": true
     },
     "angle_error": {
-      "mean": 4.722096569445065,
-      "median": 4.576959583351936,
-      "max": 10.430852916648064,
+      "mean": 4.630174070235713,
+      "median": 4.555920971514354,
+      "max": 10.287829028485646,
       "s": 1.0,
-      "delta_deg": 55.50897791664805
+      "delta_deg": 55.365954028485646
     },
     "reconstruction": {
-      "full": 0.3772482685685765,
-      "mfa_floor": 0.38447562972650606,
+      "full": 0.37764144184270987,
+      "mfa_floor": 0.3844756297265061,
       "pca_floor": 0.43178889484116645,
       "input_error": 1.2526332125276023
     },

@@ -5,6 +5,7 @@ __pycache__/
 .venv
 data/dsprites/*.npz
 data/ictfacekit/
+data/cmu_mocap/
 
 thesis
 presentations

@@ -1,7 +1,7 @@
 {
   "experiment": "mnist_multi",
   "tag": "1loop_3loop_6arc_9loop_seed0",
-  "timestamp": "2026-08-12T11:41:17",
+  "timestamp": "2026-08-13T15:02:00",
   "config": {
     "specs": [
       {
@@ -74,82 +74,82 @@
       {
         "curve": 0,
         "type": "loop",
-        "n": 312,
+        "n": 318,
         "majority_digit": 9,
         "purity": 1.0,
-        "angle_mean_deg": 1.1564450660741972,
-        "angle_median_deg": 1.1566598462126194,
-        "angle_max_deg": 2.9847848462126194
+        "angle_mean_deg": 1.1658594033600096,
+        "angle_median_deg": 1.171875,
+        "angle_max_deg": 3.0346048657612528
       },
       {
         "curve": 1,
         "type": "loop",
-        "n": 77,
+        "n": 70,
         "majority_digit": 6,
-        "purity": 0.8831168831168831,
-        "angle_mean_deg": 12.280071804229685,
-        "angle_median_deg": 3.2019211499150515,
-        "angle_max_deg": 179.55726234590668
+        "purity": 0.8428571428571429,
+        "angle_mean_deg": 15.484543847609611,
+        "angle_median_deg": 3.415530348587424,
+        "angle_max_deg": 178.03435213748503
       },
       {
         "curve": 2,
         "type": "loop",
-        "n": 290,
+        "n": 288,
         "majority_digit": 3,
         "purity": 1.0,
-        "angle_mean_deg": 1.258920870430405,
-        "angle_median_deg": 1.1343005713504226,
-        "angle_max_deg": 4.615699428649577
+        "angle_mean_deg": 1.2714541607069174,
+        "angle_median_deg": 1.140625,
+        "angle_max_deg": 4.5981630565918294
       },
       {
         "curve": 3,
         "type": "loop",
-        "n": 86,
+        "n": 82,
         "majority_digit": 3,
-        "purity": 0.5465116279069767,
-        "angle_mean_deg": 52.04681132390854,
-        "angle_median_deg": 38.40418005719323,
-        "angle_max_deg": 175.56824255719323
+        "purity": 0.6219512195121951,
+        "angle_mean_deg": 45.59874035350492,
+        "angle_median_deg": 6.244510498425427,
+        "angle_max_deg": 179.31017700157457
       },
       {
         "curve": 4,
         "type": "loop",
-        "n": 284,
+        "n": 283,
         "majority_digit": 1,
         "purity": 1.0,
-        "angle_mean_deg": 1.4893844954543627,
-        "angle_median_deg": 1.1749651016521057,
-        "angle_max_deg": 4.817222398347894
+        "angle_mean_deg": 1.4859842169885067,
+        "angle_median_deg": 1.1784005139653573,
+        "angle_max_deg": 4.805974486034756
       },
       {
         "curve": 5,
         "type": "loop",
-        "n": 60,
+        "n": 57,
         "majority_digit": 1,
-        "purity": 0.6166666666666667,
-        "angle_mean_deg": 51.544138132542166,
-        "angle_median_deg": 15.019456476266214,
-        "angle_max_deg": 179.04304352373367
+        "purity": 0.631578947368421,
+        "angle_mean_deg": 49.60632092909581,
+        "angle_median_deg": 13.361582041539009,
+        "angle_max_deg": 171.185292958461
       },
       {
         "curve": 6,
         "type": "loop",
-        "n": 39,
+        "n": 41,
         "majority_digit": 1,
         "purity": 1.0,
-        "angle_mean_deg": 36.690270253640406,
-        "angle_median_deg": 33.801148555996576,
-        "angle_max_deg": 106.96447644400342
+        "angle_mean_deg": 36.611911264497955,
+        "angle_median_deg": 31.796105263488016,
+        "angle_max_deg": 109.78201973651198
       },
       {
         "curve": 7,
         "type": "path",
-        "n": 292,
+        "n": 301,
         "majority_digit": 6,
         "purity": 1.0,
-        "angle_mean_deg": 1.0903700625979917,
-        "angle_median_deg": 0.9006298530515373,
-        "angle_max_deg": 4.2784341973290125
+        "angle_mean_deg": 1.1260554598397399,
+        "angle_median_deg": 0.9749651549918497,
+        "angle_max_deg": 4.304134312795959
       }
     ],
     "matching": [
@@ -157,25 +157,25 @@
         "digit": 1,
         "type": "loop",
         "curve": 4,
-        "n_overlap": 284
+        "n_overlap": 283
       },
       {
         "digit": 3,
         "type": "loop",
         "curve": 2,
-        "n_overlap": 290
+        "n_overlap": 288
       },
       {
         "digit": 6,
         "type": "arc",
         "curve": 7,
-        "n_overlap": 292
+        "n_overlap": 301
       },
       {
         "digit": 9,
         "type": "loop",
         "curve": 0,
-        "n_overlap": 312
+        "n_overlap": 318
       }
     ],
     "loops": {
@@ -183,53 +183,53 @@
         {
           "curve": 4,
           "majority_digit": 1,
-          "persistence": 393.47845064174703,
-          "n": 284,
-          "angle_median_deg": 1.1749651016521057
+          "persistence": 393.47845064174624,
+          "n": 283,
+          "angle_median_deg": 1.1784005139653573
         },
         {
           "curve": 2,
           "majority_digit": 3,
-          "persistence": 703.2529211301988,
-          "n": 290,
-          "angle_median_deg": 1.1343005713504226
+          "persistence": 703.2529211301987,
+          "n": 288,
+          "angle_median_deg": 1.140625
         },
         {
           "curve": 0,
           "majority_digit": 9,
-          "persistence": 790.9883440025463,
-          "n": 312,
-          "angle_median_deg": 1.1566598462126194
+          "persistence": 790.9883440025461,
+          "n": 318,
+          "angle_median_deg": 1.171875
         }
       ],
       "extra": [
         {
           "curve": 1,
           "majority_digit": 6,
-          "persistence": 756.9458154770779,
-          "n": 77,
-          "angle_median_deg": 3.2019211499150515
+          "persistence": 756.945815477078,
+          "n": 70,
+          "angle_median_deg": 3.415530348587424
         },
         {
           "curve": 3,
           "majority_digit": 3,
           "persistence": 568.9756414638715,
-          "n": 86,
-          "angle_median_deg": 38.40418005719323
+          "n": 82,
+          "angle_median_deg": 6.244510498425427
         },
         {
           "curve": 5,
           "majority_digit": 1,
-          "persistence": 384.89836264496927,
-          "n": 60,
-          "angle_median_deg": 15.019456476266214
+          "persistence": 384.8983626449696,
+          "n": 57,
+          "angle_median_deg": 13.361582041539009
         },
         {
           "curve": 6,
           "majority_digit": 1,
           "persistence": 322.24188101865957,
-          "n": 39,
-          "angle_median_deg": 33.801148555996576
+          "n": 41,
+          "angle_median_deg": 31.796105263488016
         }
       ]
     }

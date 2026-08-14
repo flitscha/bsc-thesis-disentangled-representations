@@ -1,7 +1,7 @@
 {
   "experiment": "mnist_rotation",
   "run_name": "digit6_seed0/capacity_traversal",
-  "timestamp": "2026-08-12T11:40:39",
+  "timestamp": "2026-08-13T15:01:16",
   "kind": "loop",
   "params": {
     "pca_dim": 20,
@@ -51,7 +51,7 @@
       "delta_deg": -0.5959340883607157
     },
     "reconstruction": {
-      "full": 0.21947800137212306,
+      "full": 0.21947800137212303,
       "mfa_floor": 0.20802811662940285,
       "pca_floor": 0.19448750609537815,
       "input_error": 0.0
