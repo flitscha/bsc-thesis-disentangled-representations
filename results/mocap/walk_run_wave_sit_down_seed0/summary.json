@@ -1,0 +1,146 @@
+{
+  "experiment": "mocap",
+  "tag": "walk_run_wave_sit_down_seed0",
+  "timestamp": "2026-08-13T15:23:33",
+  "config": {
+    "specs": [
+      {
+        "motion": "walk",
+        "samples": 400
+      },
+      {
+        "motion": "run",
+        "samples": 400
+      },
+      {
+        "motion": "wave",
+        "samples": 400
+      },
+      {
+        "motion": "sit_down",
+        "samples": 400
+      }
+    ],
+    "samples_per": 400,
+    "noise": 0.0,
+    "n_components": 100,
+    "pca_dim": 50,
+    "lambda_aniso": 30.0,
+    "n_neighbors": 4,
+    "interp_tangent_weight": 3.0,
+    "h0_persistence_factor": 0.0,
+    "seed": 0,
+    "n_frames": [
+      613,
+      294,
+      147,
+      101
+    ]
+  },
+  "metrics": {
+    "topology": {
+      "n_components": 4,
+      "n_components_expected": 4,
+      "components_match": true,
+      "n_loops": 2,
+      "n_paths": 2,
+      "n_loops_expected": 2,
+      "n_paths_expected": 2,
+      "loops_match": true,
+      "paths_match": true,
+      "n_detected": 4,
+      "types_detected": [
+        "loop",
+        "loop",
+        "path",
+        "path"
+      ],
+      "n_expected": 4,
+      "types_expected": [
+        "loop",
+        "loop",
+        "path",
+        "path"
+      ],
+      "match": true
+    },
+    "ari": 1.0,
+    "per_component_factor": [
+      {
+        "curve": 0,
+        "type": "loop",
+        "n": 415,
+        "majority_motion": "walk",
+        "expected_kind": "loop",
+        "unit": "%",
+        "purity": 0.963855421686747,
+        "error_mean": 3.3187620932247808,
+        "error_median": 2.424841940341622,
+        "error_max": 47.19805803345903
+      },
+      {
+        "curve": 1,
+        "type": "loop",
+        "n": 279,
+        "majority_motion": "run",
+        "expected_kind": "loop",
+        "unit": "%",
+        "purity": 1.0,
+        "error_mean": 5.128595453457237,
+        "error_median": 3.846287842302042,
+        "error_max": 30.040997578394283
+      },
+      {
+        "curve": 2,
+        "type": "path",
+        "n": 101,
+        "majority_motion": "sit_down",
+        "expected_kind": "arc",
+        "unit": "%",
+        "purity": 1.0,
+        "error_mean": 1.9025195125957852,
+        "error_median": 2.1146577640753037,
+        "error_max": 3.6385642183246176
+      },
+      {
+        "curve": 3,
+        "type": "path",
+        "n": 147,
+        "majority_motion": "wave",
+        "expected_kind": "arc",
+        "unit": "%",
+        "purity": 1.0,
+        "error_mean": 6.054321332454451,
+        "error_median": 4.654857263713275,
+        "error_max": 25.87778135515977
+      }
+    ],
+    "matching": [
+      {
+        "motion": "walk",
+        "kind": "loop",
+        "curve": 0,
+        "n_overlap": 400
+      },
+      {
+        "motion": "run",
+        "kind": "loop",
+        "curve": 1,
+        "n_overlap": 279
+      },
+      {
+        "motion": "wave",
+        "kind": "arc",
+        "curve": 3,
+        "n_overlap": 147
+      },
+      {
+        "motion": "sit_down",
+        "kind": "arc",
+        "curve": 2,
+        "n_overlap": 101
+      }
+    ],
+    "n_extra_curves": 0
+  }
+}
