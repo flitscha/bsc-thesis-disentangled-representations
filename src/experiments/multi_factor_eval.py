@@ -244,12 +244,15 @@ def _ground_truth_strip(pipe, curve, match, cid, angles, t, digit_id, X):
 
 
 def run_evaluation(
-    *, specs=None, samples_per=120, noise=0.15, n_components=90,
-    pca_dim=40, lambda_aniso=30.0, n_neighbors=5, interp_tangent_weight=3.0,
+    *, specs=None, samples_per=360, noise=0.15, n_components=200,
+    pca_dim=60, lambda_aniso=30.0, n_neighbors=4, interp_tangent_weight=3.0,
     seed=0, results_root=None, save=True, progress=None,
 ):
     """
     Run the multi-factor evaluation for one configuration and (optionally) save.
+
+    The defaults are the configuration of the run reported in the thesis
+    (`results/mnist_multi/1loop_3loop_6arc_9loop_seed0/`).
 
     Returns (summary_dict, run_dir).
     """
@@ -257,10 +260,16 @@ def run_evaluation(
         if progress is not None:
             progress(msg)
 
-    if specs is None:  # default: two full loops + one half arc (the mixed case)
-        specs = [{"digit": 0, "start": 0, "end": 360},
+    if specs is None:  # three full loops + one half arc (the mixed case)
+        specs = [{"digit": 1, "start": 0, "end": 360},
                  {"digit": 3, "start": 0, "end": 360},
-                 {"digit": 7, "start": 0, "end": 180}]
+                 {"digit": 6, "start": 0, "end": 180},
+                 {"digit": 9, "start": 0, "end": 360}]
+
+    # pin the count actually used into every spec, so the saved config says what
+    # was generated instead of leaving `samples_per` as a fallback that a
+    # per-spec "samples" may have overridden
+    specs = [{**s, "samples": int(s.get("samples", samples_per))} for s in specs]
 
     tag = f"{_spec_tag(specs)}_seed{seed}"
     expected_n = len(specs)

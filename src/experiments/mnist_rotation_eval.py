@@ -56,14 +56,17 @@ def _headline(summary):
 
 
 def run_evaluation(
-    *, digit=3, n_angles=360, noise=0.15, n_components=24,
-    pca_dim=20, latent_dim=1, lambda_aniso=30.0, n_neighbors=5,
+    *, digit=6, n_angles=360, noise=0.25, n_components=24,
+    pca_dim=20, latent_dim=1, lambda_aniso=30.0, n_neighbors=4,
     interp_tangent_weight=3.0, seed=0,
     methods=("tda", "traversal"), results_root=None,
     progress=None
 ):
     """
     Run the full single-config rotation evaluation and save all results.
+
+    The defaults are the configuration of the run reported in the thesis
+    (`results/mnist_rotation/digit6_seed0/`).
 
     Returns
     -------
@@ -160,18 +163,24 @@ if __name__ == "__main__":
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+    # the defaults reproduce the run reported in the thesis
     ap = argparse.ArgumentParser(description="Rotating-MNIST evaluation (Exp. 1)")
-    ap.add_argument("--digit", type=int, default=3)
+    ap.add_argument("--digit", type=int, default=6)
     ap.add_argument("--n-angles", type=int, default=360)
-    ap.add_argument("--noise", type=float, default=0.15)
+    ap.add_argument("--noise", type=float, default=0.25)
     ap.add_argument("--n-components", type=int, default=24)
     ap.add_argument("--pca-dim", type=int, default=20)
+    ap.add_argument("--n-neighbors", type=int, default=4)
+    ap.add_argument("--lambda-aniso", type=float, default=30.0)
+    ap.add_argument("--interp-tangent-weight", type=float, default=3.0)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
     comp, out = run_evaluation(
         digit=args.digit, n_angles=args.n_angles, noise=args.noise,
-        n_components=args.n_components, pca_dim=args.pca_dim, seed=args.seed,
+        n_components=args.n_components, pca_dim=args.pca_dim,
+        n_neighbors=args.n_neighbors, lambda_aniso=args.lambda_aniso,
+        interp_tangent_weight=args.interp_tangent_weight, seed=args.seed,
         progress=print)
     print("\n" + _format_comparison(comp))
     print("saved to", out)

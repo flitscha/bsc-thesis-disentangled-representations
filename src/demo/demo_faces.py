@@ -160,7 +160,7 @@ class FacesDemoTab:
 
             dpg.add_spacer(height=6)
             self.image_size_in = dpg.add_input_int(
-                label="Image size (px)", default_value=64, width=_width)
+                label="Image size (px)", default_value=128, width=_width)
             with dpg.tooltip(self.image_size_in):
                 dpg.add_text(
                     "Faces are rendered square at this resolution; the data "
@@ -493,8 +493,8 @@ class FacesDemoTab:
             dpg.set_value(self.row_include[row], use)
             dpg.set_value(self.row_factor[row], factor)
             dpg.set_value(self.row_samples[row], 120)
-        dpg.set_value(self.image_size_in, 64)
-        dpg.set_value(self.noise_in, 0.02)
+        dpg.set_value(self.image_size_in, 128)
+        dpg.set_value(self.noise_in, 0.0)
         dpg.set_value(self.seed_in, 0)
         dpg.set_value(self.n_comp_in, 90)
         dpg.set_value(self.pca_dim_in, 40)

@@ -210,9 +210,10 @@ class MocapDemoTab:
             with dpg.tooltip(self.k_distance_in):
                 dpg.add_text(
                     "Neighbors of the k-NN graph whose shortest paths give the "
-                    "geodesic distance (Sec. 5.4). Higher than in the image "
-                    "demos: a motion is recorded several times, and the charts "
-                    "of the different repetitions have to be linked.", wrap=260)
+                    "geodesic distance (Sec. 5.4). Small values keep the "
+                    "recordings apart: with k = 4 the graph falls into one "
+                    "piece per motion, which is what lets the automatic H0 rule "
+                    "separate them.", wrap=260)
 
             dpg.add_spacer(height=6)
 

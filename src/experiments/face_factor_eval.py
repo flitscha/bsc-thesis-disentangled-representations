@@ -157,12 +157,15 @@ def _reconstruct_along(pipe, curve, n):
 
 
 def run_evaluation(
-    *, specs=None, samples_per=120, image_size=64, noise=0.02, n_components=90,
+    *, specs=None, samples_per=120, image_size=128, noise=0.0, n_components=90,
     pca_dim=40, lambda_aniso=30.0, n_neighbors=4, interp_tangent_weight=3.0,
     seed=0, results_root=None, save=True, progress=None,
 ):
     """
     Run the face evaluation for one configuration and save it.
+
+    The defaults are the configuration of the run reported in the thesis
+    (`results/faces/Ayaw_Bsmile_Cjaw_open_seed0/`).
 
     Returns (summary_dict, run_dir).
     """
@@ -170,7 +173,8 @@ def run_evaluation(
         if progress is not None:
             progress(msg)
 
-    specs = [dict(s) for s in (specs if specs is not None else DEFAULT_SPECS)]
+    specs = [{**s, "samples": int(s.get("samples", samples_per))}
+             for s in (specs if specs is not None else DEFAULT_SPECS)]
     image_shape = (int(image_size), int(image_size))
     tag = f"{_spec_tag(specs)}_seed{seed}"
     expected_n = len(specs)

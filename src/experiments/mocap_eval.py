@@ -33,12 +33,14 @@ from experiments.eval import figures as F
 from experiments.multi_factor_eval import _component_labels
 from visualization.mocap import draw_vector
 
-# Verified default: two periodic motions and one one-way movement, i.e. two
-# loops and one arc. The automatic H0 rule finds all three on its own here; see
-# `h0_persistence_factor` for what a fourth component costs.
+# The configuration reported in the thesis: two periodic motions and two one-way
+# movements, i.e. two loops and two arcs. With the defaults below (in particular
+# `n_neighbors = 4`) the automatic H0 rule separates all four on its own; see
+# `h0_persistence_factor` for the explicit threshold that replaces the rule.
 DEFAULT_SPECS = [
     {"motion": "walk"},
     {"motion": "run"},
+    {"motion": "wave"},
     {"motion": "sit_down"},
 ]
 
@@ -201,12 +203,15 @@ def _apply_h0_threshold(pipe, factor):
 
 
 def run_evaluation(
-    *, specs=None, samples_per=400, noise=0.0, n_components=150, pca_dim=25,
-    lambda_aniso=30.0, n_neighbors=8, interp_tangent_weight=3.0,
+    *, specs=None, samples_per=400, noise=0.0, n_components=100, pca_dim=50,
+    lambda_aniso=30.0, n_neighbors=4, interp_tangent_weight=3.0,
     h0_persistence_factor=0.0, seed=0, results_root=None, save=True, progress=None,
 ):
     """
     Run the motion capture evaluation for one configuration and save it.
+
+    The defaults are the configuration of the run reported in the thesis
+    (`results/mocap/walk_run_wave_sit_down_seed0/`).
 
     `h0_persistence_factor` > 0 replaces the automatic H0 rule by an explicit
     threshold at that multiple of the median merge scale (see
@@ -218,7 +223,8 @@ def run_evaluation(
         if progress is not None:
             progress(msg)
 
-    specs = [dict(s) for s in (specs if specs is not None else DEFAULT_SPECS)]
+    specs = [{**s, "samples": int(s.get("samples", samples_per))}
+             for s in (specs if specs is not None else DEFAULT_SPECS)]
     # the H0 threshold is part of the run's identity: the same motions with and
     # without it are two different results, not one overwriting the other
     h0_tag = f"_h0f{h0_persistence_factor:g}" if h0_persistence_factor else ""

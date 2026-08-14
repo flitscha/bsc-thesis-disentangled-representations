@@ -24,8 +24,9 @@ VIEW_AZIMUTH = 25.0
 LIMB_COLORS = {"l": "#1f77b4", "r": "#d62728", "": "#333333"}
 
 # Fixed drawing box in metres, so that every stick figure of a figure is on the
-# same scale: the subject is about 1.7 m tall and never reaches further than a
-# metre from the root.
+# same scale. Measured on the recordings: the topmost joint (`head`, the base of
+# the skull, not the crown) sits about 1.45 m above the floor, and no joint gets
+# further than a metre from the root; the box leaves headroom on both counts.
 VIEW_BOX = ((-0.85, 0.85), (0.0, 1.9))
 
 

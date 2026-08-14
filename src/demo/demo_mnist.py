@@ -143,7 +143,7 @@ class MNISTDemoTab:
 
             dpg.add_spacer(height=6)
             self.noise_in = dpg.add_input_float(
-                label="Pixel noise (std)", default_value=0.15, min_value=0.0,
+                label="Pixel noise (std)", default_value=0.25, min_value=0.0,
                 step=0.01, width=_width,
             )
             with dpg.tooltip(self.noise_in):
