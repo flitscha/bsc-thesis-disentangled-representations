@@ -24,28 +24,12 @@ from scipy.optimize import linear_sum_assignment
 
 from data.mnist_rotation import make_multi_rotation_dataset
 from core.pipeline import ManifoldPipeline
-from experiments.eval import align_loop, align_arc, topology_report, discrete_ari
+from experiments.eval import (
+    align_loop, align_arc, topology_report, discrete_ari, component_labels,
+)
 from experiments.eval import figures as F
 
 IMAGE_SHAPE = (30, 30)
-
-
-def _component_labels(pipe, X):
-    """
-    Per-observation H0 connected-component label.
-
-    The component scatter and the ARI are about H0, which charts merge into one
-    structure, not about the H1 curve an observation happens to lie on. Each
-    observation therefore inherits the component of its nearest kept chart,
-    independent of the loop / arc detection.
-    """
-    Z = pipe.pre.transform(np.asarray(X)) if pipe.pre is not None else np.asarray(X)
-    kept = pipe.kept_
-    means = pipe.model.means[kept]                 # (M, d) kept chart means
-    comp = pipe.structure_["components"][kept]      # (M,) H0 component labels
-    d2 = ((Z * Z).sum(1)[:, None] + (means * means).sum(1)[None, :]
-          - 2.0 * Z @ means.T)
-    return comp[np.argmin(d2, axis=1)]
 
 
 def _is_loop_spec(s):
@@ -278,7 +262,7 @@ def run_evaluation(
     say("detecting structure (TDA) ...")
     pipe.detect()
     t, cid = pipe.transform(X)
-    comp_id = _component_labels(pipe, X)  # H0 component per observation
+    comp_id = component_labels(pipe, X)  # H0 component per observation
 
     # match each expected digit to the detected curve that best covers it; this
     # drives both the 'correct' sweeps (one per expected digit) and the metrics.

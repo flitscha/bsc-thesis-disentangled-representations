@@ -23,9 +23,8 @@ from scipy.optimize import linear_sum_assignment
 
 from data.faces import make_multi_face_dataset, FACES, FACTOR_UNITS
 from core.pipeline import ManifoldPipeline
-from experiments.eval import align_arc, topology_report, discrete_ari
+from experiments.eval import align_arc, topology_report, discrete_ari, component_labels
 from experiments.eval import figures as F
-from experiments.multi_factor_eval import _component_labels
 
 DEFAULT_SPECS = [
     {"face": 0, "factor": "yaw"},
@@ -196,7 +195,7 @@ def run_evaluation(
     say("detecting structure (TDA) ...")
     pipe.detect()
     t, cid = pipe.transform(X)
-    comp_id = _component_labels(pipe, X) # H0 component per observation
+    comp_id = component_labels(pipe, X) # H0 component per observation
 
     matches, extra_curve_ids = _match_specs_to_curves(
         cid, component_gt, pipe.curves_, specs)

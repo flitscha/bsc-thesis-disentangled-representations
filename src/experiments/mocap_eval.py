@@ -26,9 +26,8 @@ from scipy.optimize import linear_sum_assignment
 
 from data.mocap import make_multi_motion_dataset, FACTOR_UNIT, motion_spec
 from core.pipeline import ManifoldPipeline
-from experiments.eval import align_loop, align_arc, topology_report, discrete_ari
+from experiments.eval import align_loop, align_arc, topology_report, discrete_ari, component_labels
 from experiments.eval import figures as F
-from experiments.multi_factor_eval import _component_labels
 from visualization.mocap import draw_vector
 
 # The configuration reported in the thesis: two periodic motions and two one-way
@@ -249,7 +248,7 @@ def run_evaluation(
     if h0_persistence_factor and h0_persistence_factor > 0:
         _apply_h0_threshold(pipe, h0_persistence_factor)
     t, cid = pipe.transform(X)
-    comp_id = _component_labels(pipe, X)  # H0 component per observation
+    comp_id = component_labels(pipe, X)  # H0 component per observation
 
     matches, extra_curve_ids = _match_specs_to_curves(
         cid, component_gt, pipe.curves_, specs)

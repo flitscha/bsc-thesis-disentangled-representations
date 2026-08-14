@@ -14,6 +14,24 @@ from sklearn.metrics import adjusted_rand_score
 from experiments.eval.align import align_loop, align_arc
 
 
+def component_labels(pipe, X):
+    """
+    Per-observation H0 connected-component label.
+
+    The component scatter and the ARI are about H0, which charts merge into one
+    structure, not about the H1 curve an observation happens to lie on. Each
+    observation therefore inherits the component of its nearest kept chart,
+    independent of the loop / arc detection.
+    """
+    Z = pipe.pre.transform(np.asarray(X)) if pipe.pre is not None else np.asarray(X)
+    kept = pipe.kept_
+    means = pipe.model.means[kept]              # (M, d) kept chart means
+    comp = pipe.structure_["components"][kept]  # (M,) H0 component labels
+    d2 = ((Z * Z).sum(1)[:, None] + (means * means).sum(1)[None, :]
+          - 2.0 * Z @ means.T)
+    return comp[np.argmin(d2, axis=1)]
+
+
 def topology_report(structure, expected_n=None, expected_types=None,
                     component_labels=None):
     """
