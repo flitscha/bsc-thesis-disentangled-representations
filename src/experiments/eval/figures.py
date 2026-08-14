@@ -140,14 +140,34 @@ def _suptitle(fig, title, subtitle=None):
         fig.suptitle(title, fontsize=15)
 
 
+def _cell_drawer(image_shape, to_image=None, draw=None):
+    """
+    How one observation is drawn into a cell: as an image by default, or with a
+    custom `draw(ax, vector)` for data that are not images (mocap poses).
+    """
+    if draw is not None:
+        return draw
+    to_image = to_image or (lambda v: np.asarray(v).reshape(image_shape))
+
+    def draw_image(ax, vector):
+        ax.imshow(to_image(vector), cmap="gray", vmin=0.0, vmax=1.0,
+                  interpolation="nearest")
+    return draw_image
+
+
 def plot_recovery_strips(
-    components, image_shape, to_image=None, title=None, empty_note="Nothing to show."
+    components, image_shape, to_image=None, title=None,
+    empty_note="Nothing to show.", draw=None, cell_size=(1.15, 1.15),
+    show_captions=True, row_gap=0.15, component_gap=0.15,
 ):
     """
     Per correct component two stacked rows: the ground-truth frame (top) and the
     model reconstruction at the recovered coordinate (bottom)
+
+    `row_gap` is the vertical space between those two rows, `component_gap` the
+    one between components; `show_captions` toggles the per-column value titles.
     """
-    to_image = to_image or (lambda v: np.asarray(v).reshape(image_shape))
+    draw_cell = _cell_drawer(image_shape, to_image, draw)
     if not components:
         fig = Figure(figsize=(5, 1.6))
         ax = fig.add_subplot(111)
@@ -161,39 +181,43 @@ def plot_recovery_strips(
 
     n = len(components)
     max_cols = max(len(c["angles"]) for c in components)
-    fig = Figure(figsize=(1.15 * max_cols, 2.3 * n + 0.5))
+    # the title band is a fixed height in inches, so that a figure with many
+    # components does not get a proportionally huge gap under its title
+    title_band = 0.4 if title else 0.05
+    height = 2 * cell_size[1] * n + title_band
+    fig = Figure(figsize=(cell_size[0] * max_cols, height))
 
-    gap = 0.15
-    outer = fig.add_gridspec(n, 1, hspace=0.15, left=0.09, right=0.99, top=0.90, bottom=0.03)
+    outer = fig.add_gridspec(n, 1, hspace=component_gap, left=0.09, right=0.99,
+                             top=1.0 - title_band / height, bottom=0.01)
     for i, c in enumerate(components):
-        inner = outer[i].subgridspec(2, max_cols, hspace=gap, wspace=gap)
+        inner = outer[i].subgridspec(2, max_cols, hspace=row_gap, wspace=0.15)
         rows = ((c["true_imgs"], c["label"], True),
                 (c["recon_imgs"], "model", False))
         for r_off, (imgs, row_label, is_top) in enumerate(rows):
             for col in range(len(c["angles"])):
                 ax = fig.add_subplot(inner[r_off, col])
-                ax.imshow(to_image(imgs[col]), cmap="gray", vmin=0.0, vmax=1.0,
-                          interpolation="nearest")
+                draw_cell(ax, imgs[col])
                 ax.set_xticks([])
                 ax.set_yticks([])
                 if col == 0:
                     ax.set_ylabel(row_label, rotation=0, ha="right", va="center", fontsize=9)
-                if is_top:
+                if is_top and show_captions:
                     ax.set_title(captions(c)[col], fontsize=8)
     if title:
-        fig.suptitle(title, fontsize=13)
+        fig.suptitle(title, fontsize=13, y=1.0 - 0.16 / height)
     return fig
 
 
 def plot_reconstruction_strips(strips, image_shape, to_image=None, title=None,
-                               empty_note="Nothing to show."):
+                               empty_note="Nothing to show.", draw=None,
+                               cell_size=(1.15, 1.35)):
     """
     One row of reconstructions per detected component, traversing its curve. Each
     `strips` entry is (label, images (K, D), angles (K,) or None); K may differ
     per row (e.g. 8 for a full loop, 4 for a half arc). Rows are left-aligned in
     a shared grid; angle titles are drawn on the top of each cell when given.
     """
-    to_image = to_image or (lambda v: np.asarray(v).reshape(image_shape))
+    draw_cell = _cell_drawer(image_shape, to_image, draw)
     if not strips:
         fig = Figure(figsize=(5, 1.6))
         ax = fig.add_subplot(111)
@@ -204,12 +228,11 @@ def plot_reconstruction_strips(strips, image_shape, to_image=None, title=None,
 
     n_rows = len(strips)
     max_cols = max(len(imgs) for _, imgs, _ in strips)
-    fig = Figure(figsize=(1.15 * max_cols, 1.35 * n_rows + 0.5))
+    fig = Figure(figsize=(cell_size[0] * max_cols, cell_size[1] * n_rows + 0.5))
     for r, (label, imgs, angs) in enumerate(strips):
         for c in range(len(imgs)):
             ax = fig.add_subplot(n_rows, max_cols, r * max_cols + c + 1)
-            ax.imshow(to_image(imgs[c]), cmap="gray", vmin=0.0, vmax=1.0,
-                      interpolation="nearest")
+            draw_cell(ax, imgs[c])
             ax.set_xticks([])
             ax.set_yticks([])
             if c == 0:

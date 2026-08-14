@@ -283,7 +283,7 @@ def run_evaluation(
                 label_name="ground-truth face"),
             "fig_sweep_correct.pdf": F.plot_recovery_strips(
                 correct, image_shape, to_image=to_image,
-                title="Factor recovery (top: input, bottom: model)"),
+                title="Factor recovery"),
             "fig_sweep_extra.pdf": F.plot_reconstruction_strips(
                 extra, image_shape, to_image=to_image,
                 title="Unmatched components",

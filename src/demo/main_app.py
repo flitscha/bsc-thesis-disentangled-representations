@@ -2,6 +2,7 @@ import dearpygui.dearpygui as dpg
 
 from demo.demo_mnist import MNISTDemoTab
 from demo.demo_faces import FacesDemoTab
+from demo.demo_mocap import MocapDemoTab
 from demo.demo_manifold_1d import Manifold1DTab
 from demo.demo_synthetic import SyntheticDemoTab
 from demo.demo_tda import TopologyDemoTab
@@ -14,6 +15,7 @@ class MainApplication:
         self.manifold_1d_tab = Manifold1DTab()
         self.mnist_tab = MNISTDemoTab()
         self.faces_tab = FacesDemoTab()
+        self.mocap_tab = MocapDemoTab()
         self.topology_tab = TopologyDemoTab()
 
     def build_ui(self):
@@ -31,11 +33,14 @@ class MainApplication:
                     self.mnist_tab.build_tab_ui()
                 with dpg.tab(label="Faces"):
                     self.faces_tab.build_tab_ui()
+                with dpg.tab(label="Motion Capture"):
+                    self.mocap_tab.build_tab_ui()
                 with dpg.tab(label="Topology (TDA)"):
                     self.topology_tab.build_tab_ui()
 
         self.mnist_tab.start_workers()
         self.faces_tab.start_workers()
+        self.mocap_tab.start_workers()
         dpg.set_primary_window("PrimaryWindow", True)
 
     def run(self):
