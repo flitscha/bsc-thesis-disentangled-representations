@@ -1,13 +1,11 @@
 """
-Pipeline step 1 (thesis §5.2): dimensionality reduction by PCA followed by a
-random orthogonal transformation.
+Pipeline step §5.2: PCA followed by a random orthogonal transformation.
 
-Standard PCA aligns the coordinate axes with the principal directions of the
-data. This alignment is unfavorable for an MFA model with diagonal noise
-covariance, because variation along individual PCA coordinates may be absorbed
-by the noise covariance instead of the factor loading matrices. Applying a
-random orthogonal transformation preserves the reduced subspace (distances and
-angles are unchanged) but removes the preferred alignment with the PCA axes.
+PCA aligns the axes with the principal directions, which is unfavorable for an
+MFA with diagonal noise covariance: variation along a single axis can be
+absorbed by the noise instead of the loading matrices. The random orthogonal
+transformation keeps the subspace (and all distances and angles) but removes
+that alignment.
 """
 
 import numpy as np
@@ -15,21 +13,11 @@ import numpy as np
 
 def random_orthogonal(dim: int, rng=None) -> np.ndarray:
     """
-    Draw a Haar-uniform random orthogonal matrix Q in O(dim) (Q^T Q = I).
+    Draw a Haar-uniform random orthogonal (dim, dim) matrix.
 
-    Constructed from the QR decomposition of a matrix with i.i.d. standard
-    normal entries. The sign correction Q * diag(R)/|diag(R)| makes the
-    distribution exactly Haar-uniform. The result may contain a reflection
-    (det = -1), i.e. it is an orthogonal transformation, not merely a rotation.
-
-    Parameters
-    ----------
-    dim : int
-    rng : np.random.Generator, int or None
-
-    Returns
-    -------
-    Q : (dim, dim) orthogonal matrix
+    QR of an i.i.d. standard normal matrix; the sign correction
+    Q * diag(R)/|diag(R)| makes the distribution exactly Haar-uniform. The
+    result may contain a reflection, so it is orthogonal but not always a rotation.
     """
     rng = np.random.default_rng(rng)
     H = rng.standard_normal((dim, dim))
@@ -40,21 +28,12 @@ def random_orthogonal(dim: int, rng=None) -> np.ndarray:
 
 class PCARotation:
     """
-    PCA projection onto ``n_components`` dimensions followed by a random
-    orthogonal transformation (thesis §5.2).
+    PCA onto 'n_components' dimensions, then a random orthogonal transformation.
 
-    Follows the sklearn-style fit / transform / inverse_transform convention so
-    the same fitted transform can be applied to a separate validation set.
-
-    Attributes (set after ``fit``)
-    ------------------------------
-    mean_ : (D0,)
-        Empirical mean of the training data, removed before projection.
-    rotation_ : (d, d)
-        The random orthogonal matrix, where d = min(n_components, rank(X)).
-    components_ : (D0, d)
-        Combined transform (PCA basis @ rotation); columns map ambient space
-        to the rotated reduced coordinates.
+    Follows the sklearn fit / transform / inverse_transform convention, so the
+    fitted transform can be reused on a validation set. After 'fit', with
+    d = min(n_components, rank(X)): 'mean_' (D0,) is the training mean,
+    'rotation_' (d, d) the random matrix and 'components_' (D0, d) their product.
     """
 
     def __init__(self, n_components: int, rng=None):
@@ -69,22 +48,18 @@ class PCARotation:
         self.mean_ = X.mean(axis=0)
         X_centered = X - self.mean_
 
-        # Standard PCA via SVD; right singular vectors are the principal axes.
+        # PCA via SVD; the right singular vectors are the principal axes
         _, _, Vt = np.linalg.svd(X_centered, full_matrices=False)
 
-        # Guard against requesting more components than available directions.
-        dim = min(self.n_components, Vt.shape[0])
-        basis = Vt[:dim].T  # (D0, dim)
+        dim = min(self.n_components, Vt.shape[0])  # cannot exceed the rank
+        basis = Vt[:dim].T
 
-        self.rotation_ = random_orthogonal(dim, self.rng)  # (dim, dim)
-        self.components_ = basis @ self.rotation_  # (D0, dim)
+        self.rotation_ = random_orthogonal(dim, self.rng)
+        self.components_ = basis @ self.rotation_
         return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         return (np.asarray(X) - self.mean_) @ self.components_
-
-    def fit_transform(self, X: np.ndarray) -> np.ndarray:
-        return self.fit(X).transform(X)
 
     def inverse_transform(self, Z: np.ndarray) -> np.ndarray:
         """Back-project from the rotated reduced space to the ambient space."""

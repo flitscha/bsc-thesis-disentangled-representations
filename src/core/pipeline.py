@@ -1,36 +1,24 @@
 """
-High-level manifold-learning pipeline (thesis §5.2-§5.7).
+High-level manifold-learning pipeline (§5.2-§5.7).
 
-'ManifoldPipeline' wraps the individual pipeline steps behind one object that
-operates on a plain numpy array X, so it is usable independently of the demos.
+'ManifoldPipeline' wraps all pipeline steps behind one object operating on a
+plain numpy array, usable independently of the demos. Either run whole stages
+(fit / detect / fit_detect) or one step at a time (preprocess, fit_model,
+distance_matrix, detect_structure, interpolate), where each step enriches the
+object with its artifacts.
 
-Two levels of granularity are available:
+Hyperparameters stay mutable via set_params and are grouped by the step they
+feed; changing one means re-running from that step onward:
 
-  Convenience (coarse):
-      pipe.fit(X)          # §5.2 preprocessing + §5.3 MFA / tangent frames
-      pipe.detect()        # §5.4 distances + §5.5/6 detection + §5.7 splines
-      pipe.fit_detect(X)
+    pca_dim                                    -> preprocess()      §5.2
+    n_components, latent_dim, cov_type, shared -> fit_model()       §5.3
+    lambda_aniso, n_neighbors                  -> distance_matrix() §5.4
+    detection, TDA thresholds, `closed`        -> detect_structure()§5.5/6
+    interp_tangent_weight                      -> interpolate()     §5.7
+    seed                                       -> full re-fit
 
-  Fine-grained (run / inspect one step at a time; each enriches the object):
-      X_red = pipe.preprocess(X)     # §5.2  -> .pre
-      pipe.fit_model(X_red)          # §5.3  -> .model, .tangents, .variances
-      D = pipe.distance_matrix()     # §5.4  -> .distances_
-      pipe.detect_structure()        # §5.5/6 -> .structure_, .curves_ (orders)
-      pipe.interpolate()             # §5.7  -> .curves_ (with splines)
-
-Hyperparameters are set in the constructor but stay mutable (set_params /
-get_params). They are grouped by the step they feed, so the "what do I re-run
-after changing this?" rule lines up with the fine-grained methods:
-
-    PCA (§5.2)         : pca_dim                                    -> preprocess()
-    MFA (§5.3)         : n_components, latent_dim, cov_type, shared -> fit_model()
-    distance (§5.4)    : lambda_aniso, n_neighbors                 -> distance_matrix()
-    detection (§5.5/6) : detection, + TDA thresholds / `closed`     -> detect_structure()
-    seed               : feeds preprocess() and fit_model()        -> full re-fit
-
-Changing a parameter means re-running from its step onward. The convenience
-fit() / detect() always re-run their whole stage, so a fitted model can be
-re-detected with new distance / detection parameters without an expensive re-fit.
+detect() re-runs its whole stage, so a fitted model can be re-detected with new
+distance or detection parameters without an expensive re-fit.
 """
 
 import numpy as np
@@ -45,14 +33,12 @@ from core.interpolation import interpolate_curves
 
 class ManifoldPipeline:
 
-    # Hyperparameters grouped by the step they feed. Changing one means
-    # re-running from that step onward (see module docstring).
-    _PCA_PARAMS = ("pca_dim",)                                          # -> preprocess()  §5.2
-    _MFA_PARAMS = ("n_components", "latent_dim", "cov_type", "shared")  # -> fit_model()  §5.3
-    _DISTANCE_PARAMS = ("lambda_aniso", "n_neighbors")                 # -> distance_matrix()  §5.4
-    _DETECT_PARAMS = ("detection",)                                    # -> detect_structure()  §5.5/6
-    _INTERP_PARAMS = ("interp_tangent_weight",)                         # -> interpolate()  §5.7
-    # `seed` feeds preprocess() and fit_model() -> full re-fit when changed
+    # grouped by the step they feed (see module docstring)
+    _PCA_PARAMS = ("pca_dim",)
+    _MFA_PARAMS = ("n_components", "latent_dim", "cov_type", "shared")
+    _DISTANCE_PARAMS = ("lambda_aniso", "n_neighbors")
+    _DETECT_PARAMS = ("detection",)
+    _INTERP_PARAMS = ("interp_tangent_weight",)
     _PARAMS = _PCA_PARAMS + _MFA_PARAMS + ("seed",) + _DISTANCE_PARAMS + _DETECT_PARAMS + _INTERP_PARAMS
 
     def __init__(
@@ -69,41 +55,35 @@ class ManifoldPipeline:
         seed=None,
         **detect_kwargs,
     ):
-        # --- PCA parameter (§5.2) ---
         self.pca_dim = pca_dim if (pca_dim and pca_dim > 0) else None
 
-        # --- MFA parameters (§5.3) ---
         self.n_components = n_components
         self.latent_dim = latent_dim
         self.cov_type = cov_type
         self.shared = shared
 
-        # --- distance parameters (§5.4) ---
         self.lambda_aniso = lambda_aniso   # off-manifold penalty of the local metric
         self.n_neighbors = n_neighbors     # neighbors of the geodesic graph
 
-        # --- interpolation parameter (§5.7) ---
         self.interp_tangent_weight = interp_tangent_weight  # chart-tangent alignment strength
 
-        # --- detection parameters (§5.5/6) ---
         self.detection = detection
-        # extra kwargs: TDA thresholds (min_persistence_h0/h1, component_gap_factor_h0,
+        # TDA thresholds (min_persistence_h0/h1, component_gap_factor_h0,
         # prominence_ratio_h1) or the traversal baseline's `closed` override
         self.detect_kwargs = dict(detect_kwargs)
 
-        # --- reproducibility (feeds preprocess + fit_model) ---
         self.seed = seed
 
         # --- fitted artifacts ---
-        self.pre = None         # PCARotation, or None if pca_dim is None
+        self.pre = None          # PCARotation, or None if pca_dim is None
         self.model = None        # fitted MFA model
         self.tangents = None     # (C, D, latent_dim) orthonormal tangent frames
         self.variances = None    # (C, latent_dim) captured variance per direction
         self.noise_ = None       # (C,) mean off-manifold noise variance
         self.obj = None          # final training objective
         self.kept_ = None        # original indices of the charts kept after pruning
-        self.distances_ = None   # (M, M) distance matrix over the kept charts (§5.4)
-        self.structure_ = None   # raw detection result (index orders, §5.5/6)
+        self.distances_ = None   # (M, M) distance matrix over the kept charts
+        self.structure_ = None   # raw detection result (index orders)
         self.curves_ = None      # detected curves (with splines after interpolate)
 
     # ------------------------------------------------------------------
@@ -292,30 +272,14 @@ class ManifoldPipeline:
     # ------------------------------------------------------------------
     def transform(self, X, n_samples=512):
         """
-        Encode observations into the learned 1D coordinate(s): the disentangling
-        map f: X -> Z of the thesis.
+        Encode (N, D0) observations into the learned 1D coordinate: the map f: X -> Z.
 
-        Each observation is projected onto the nearest detected curve by densely
-        sampling its spline and taking the closest sample. Returns, per
-        observation, which curve it belongs to and its parameter t along that
-        curve. This is label-free (uses no ground truth), so it stays part of the
-        unsupervised model; ground-truth alignment happens only at evaluation
-        time. Operates in the reduced (PCA+rotation) space the curves live in.
+        Each observation is projected onto the nearest detected curve, found by
+        sampling every spline at 'n_samples' points. Label-free, so it stays part
+        of the unsupervised model; ground-truth alignment happens at evaluation.
 
-        Parameters
-        ----------
-        X : (N, D0) array
-            Observations in the ambient space.
-        n_samples : int
-            Spline samples per curve for the nearest-point search.
-
-        Returns
-        -------
-        t : (N,) ndarray
-            Parameter in [0, 1] of the nearest point on the assigned curve
-            (in [0, 1) for loops, which are periodic).
-        curve_id : (N,) ndarray of int
-            Index into self.curves_ of the assigned curve.
+        Returns t in [0, 1] (in [0, 1) for periodic loops) and the index into
+        self.curves_ of the assigned curve.
         """
         if self.curves_ is None:
             raise RuntimeError("call detect() before transform().")
@@ -331,9 +295,7 @@ class ManifoldPipeline:
             spline = curve.get("spline")
             if spline is None:
                 continue
-            # loops are periodic (t=0 == t=1), so drop the duplicate endpoint;
-            # open curves keep it.
-            endpoint = curve.get("type") != "loop"
+            endpoint = curve.get("type") != "loop"  # loops close, so t=1 duplicates t=0
             ts = np.linspace(0.0, 1.0, n_samples, endpoint=endpoint)
             pts = np.asarray(spline(ts)) # (n_samples, D)
             # squared distances (N, n_samples): |z|^2 + |p|^2 - 2 z.p

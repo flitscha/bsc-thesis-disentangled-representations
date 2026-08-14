@@ -1,21 +1,17 @@
 """
 Face experiment: several faces, each varying a different generative factor.
 
-Every face is a different identity of the ICT morphable face model and sweeps one
-factor over its full range:
-- one head turns (yaw, in degrees)
-- another smiles
-- another opens its jaw
+Every face is a different identity of the ICT morphable face model, sweeping one
+factor over its full range: one head turns (yaw in degrees), another smiles,
+another opens its jaw. The identities are far apart in pixel space and never
+meet, so each face is a separate connected component and, since no factor closes,
+an open arc.
 
-Different identities are far apart in pixel space and never meet, so
-each face is a separate connected component (H0).
+    M1  topology      expected vs. detected components and per-component type
+    M2  factor error  per component, in its own unit (degrees or units)
+    M4  ARI           agreement of detected components with the face labels
 
-Reported:
-- M1  topology      expected vs. detected #components + per-component type
-- M4  ARI           agreement of detected components with the face labels
-- M2  factor error  per component, in that component's own unit (deg / units)
-
-Results are written to  results/faces/<tag>/.
+Results are written to results/faces/<tag>/.
 """
 
 import os

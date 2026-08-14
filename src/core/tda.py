@@ -43,17 +43,13 @@ def _h0_num_components(diagram, gap_factor):
     """
     Number of connected components read off the H0 barcode by its largest gap.
 
-    H0 deaths are the scales at which components merge (their birth is 0).
-    Within one structure they cluster around the typical spacing between
-    neighbouring components. A merge that joins two genuinely separate
-    structures sits well above that cluster, leaving a visible gap in the
-    barcode.
-    We cut at the largest gap between sorted deaths and count every death
-    above it as an extra component.
-    The cut only fires if that gap is at least 'gap_factor' times the median
-    death, so a single well-connected structure stays one component.
+    H0 deaths are the scales at which components merge. Within one structure they
+    cluster around the typical spacing of neighbouring components, so a merge
+    joining two separate structures leaves a visible gap. We cut at the largest
+    gap and count every death above it; the cut only fires if the gap is at least
+    'gap_factor' times the median death.
     """
-    deaths = np.array(sorted(d for (dim, (b, d)) in diagram if dim == 0 and np.isfinite(d)))
+    deaths = np.array(sorted(d for (dim, (_, d)) in diagram if dim == 0 and np.isfinite(d)))
     if deaths.size < 2:
         return 1
     gaps = np.diff(deaths)
@@ -81,22 +77,11 @@ def extract_loop(distance_matrix, birth_edge, birth_scale):
     """
     Reconstruct a representative cycle for an H1 loop as an ordered node list.
 
-    Persistent homology reports a loop only abstractly (a birth/death pair); this
-    turns it back into a concrete ordering of the components around the hole.
-
-    Parameters
-    ----------
-    distance_matrix : (N, N) array
-        Pairwise distances between components (§5.4).
-    birth_edge : (u, v)
-        The H1 birth edge that closes the loop.
-    birth_scale : float
-        Filtration scale at which the loop is born, i.e. distance_matrix[u, v].
-
-    Returns
-    -------
-    path : list of int
-        Component indices in order around the cycle (u ... v, u).
+    Persistent homology reports a loop only as a birth/death pair; this turns it
+    back into a concrete ordering of components around the hole, by taking the
+    shortest path from u to v once their closing edge is removed.
+    'birth_edge' is the edge (u, v) that closes the loop at scale 'birth_scale'.
+    Returns the component indices in order around the cycle (u ... v, u).
     """
     u, v = int(birth_edge[0]), int(birth_edge[1])
 
@@ -124,38 +109,21 @@ def detect_tda(
     component_gap_factor_h0=0.5, prominence_ratio_h1=1.8,
 ):
     """
-    Detect connected components (H0) and loops (H1) from a distance matrix
-    via topological data analysis (persistent homology).
+    Detect connected components (H0) and loops (H1) from an (N, N) distance matrix.
 
     Parameters
     ----------
-    distance_matrix : (N, N) array
-        Pairwise distances between the MFA components.
-    min_persistence_h0, min_persistence_h1 : float or None
-        Fixed persistence thresholds. None (default) uses the automatic,
-        scale-free criteria below.
-    component_gap_factor_h0 : float
-        Auto H0 threshold: split components at the largest gap in the H0
-        barcode, provided that gap is at least this multiple of the median
-        merge scale.
-    prominence_ratio_h1 : float
-        Auto H1 threshold: keep a loop only if death >= ratio * birth, i.e. the
-        hole is much larger than the local scale at which the cycle closes.
+    min_persistence_h0, min_persistence_h1 : fixed persistence thresholds; None
+        (default) uses the scale-free criteria below.
+    component_gap_factor_h0 : split at the largest gap in the H0 barcode, if that
+        gap is at least this multiple of the median merge scale.
+    prominence_ratio_h1 : keep a loop only if death >= ratio * birth.
 
     Returns
     -------
-    result : dict
-        components : (N,) int array
-            Connected-component label for each node.
-        curves : list of dict
-            One entry per detected structure, each with a "type" ("loop" or
-            "path"), its "component" label, and the "order" of node indices
-            along it. Loops additionally carry "birth", "death" and
-            "persistence".
-        diagram : list
-            The full persistence diagram (H0 and H1).
-        diagram_h0 : list
-            Its H0 part only (the connected-component barcode).
+    dict with "components" ((N,) labels), "curves", "diagram" and its H0 part
+    "diagram_h0". Each curve has "type" ("loop" or "path"), "component" and the
+    "order" of node indices along it; loops also carry birth/death/persistence.
     """
     D = distance_matrix
     _, diagram, generators = compute_persistence(D, max_dimension=1)
@@ -167,9 +135,8 @@ def detect_tda(
         n_components = _h0_num_components(diagram, gap_factor=component_gap_factor_h0)
     components = extract_components(D, n_components=n_components)
 
-    # H1: loop detection
-    # Each generator row is one distinct H1 class.
-    # It is given by the birth edge (row[0], row[1]) and the death edge (row[2], row[3])
+    # H1: one generator row per class, holding its birth edge (row[0], row[1])
+    # and its death edge (row[2], row[3])
     gen_rows = generators[1][0] if len(generators[1]) > 0 else np.empty((0, 4), dtype=int)
     loops = []
     for row in gen_rows:
@@ -184,7 +151,6 @@ def detect_tda(
             loops.append((death - birth, birth, death, u, v))
     loops.sort(reverse=True) # most persistent first
 
-    # extract the loops
     curves = []
     covered_components = set()
 

@@ -10,15 +10,10 @@ from matplotlib.patches import Ellipse
 # --------------------------- Axis Limits ---------------------------
 def set_axis_limits(ax, points, padding=0.1, adjustable=None):
     """
-    Setzt Achsenlimits + korrektes Aspect Ratio für 2D- oder 3D-Achsen.
+    Set axis limits and an equal aspect ratio from the (N, D) points, D in {2, 3}.
 
-    Parameters
-    ----------
-    ax : matplotlib axis (2D or 3D)
-    points : ndarray (N, D), D in {2, 3}
-    padding : float or array-like with length D
-    adjustable : str oder None
-        Passed through to ax.set_aspect()
+    'padding' is a scalar or one value per dimension; 'adjustable' is passed
+    through to ax.set_aspect().
     """
     D = points.shape[1]
     mins = points.min(axis=0)

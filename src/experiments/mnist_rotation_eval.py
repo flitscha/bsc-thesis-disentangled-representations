@@ -1,18 +1,14 @@
 """
 Experiment 1: rotating MNIST digit (a single rotation loop).
 
-Runs one comprehensive, single-configuration evaluation and writes everything to
-disk. It crosses two axes:
+One call crosses two axes and therefore produces 2x2 = 4 runs:
 
     mode      : "capacity"  (clean input, self-reconstruction)
                 "denoising" (noisy input, clean target)
-    detection : "tda"       (persistent homology, the method, Sec. 5.6)
-                "traversal" (naive MST-diameter baseline, Sec. 5.5)
+    detection : "tda"       (persistent homology, §5.6)
+                "traversal" (MST-diameter baseline, §5.5)
 
-so a single call produces the 2x2 = 4 runs.
-Each run is saved under
-
-    results/mnist_rotation/<tag>/<mode>_<method>/
+Each run is saved under results/mnist_rotation/<tag>/<mode>_<method>/.
 """
 
 import os
@@ -107,7 +103,7 @@ def run_evaluation(
             try:
                 pipe.set_params(detection=method)
                 pipe.detect()
-                summary, run_dir = evaluate_run(
+                summary, _ = evaluate_run(
                     pipe, X_input, angles, kind="loop",
                     image_shape=IMAGE_SHAPE, pixel_mean=pmean, pixel_std=pstd,
                     X_target=X_target, expected_n=1, expected_types=["loop"],

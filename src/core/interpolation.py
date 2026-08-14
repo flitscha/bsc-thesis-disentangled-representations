@@ -1,15 +1,11 @@
 """
 Pipeline step §5.7: interpolate the detected 1D structures.
 
-'interpolate_curves' turns index orders plus the component means into a smooth
-curve that interpolates the means exactly while softly aligning its tangents
-with the MFA chart tangents.
-
-The curve is a cubic Hermite spline: on each segment it is the unique cubic with
-prescribed endpoint positions and endpoint derivatives.
-
-Open paths use natural (free-end) boundary tangents; loops are closed with a
-periodic wrap segment so position and tangent match across the seam.
+'interpolate_curves' turns index orders plus the component means into a cubic
+Hermite spline that passes through the means exactly while softly aligning its
+knot tangents with the MFA chart tangents. Open paths use natural boundary
+tangents; loops get a periodic wrap segment so position and tangent match across
+the seam.
 """
 
 import numpy as np
@@ -22,25 +18,15 @@ def interpolate_curves(curves, points, weights=None, tangents=None, tangent_weig
 
     Parameters
     ----------
-    curves : list of dict
-        Each has at least "type" ("loop" or "path") and "order" (indices).
-    points : (N, D) array
-        The point set the orders index into.
-    weights : (N,) array or None
-        Per-point pi_k (MFA mixing weights). Drives how strongly each chart
-        tangent is honored (small pi_k -> weak tangent).
-    tangents : (N, D) or (N, D, L) array or None
-        Local chart tangent frames. For (N, D, L) the primary (top-variance)
-        direction is used. None disables tangent alignment (pure minimal-
-        curvature interpolation).
-    tangent_weight : float
-        Overall strength of the tangent alignment relative to curvature.
+    curves : dicts with at least "type" ("loop"/"path") and "order" (indices).
+    points : (N, D) point set the orders index into.
+    weights : (N,) mixing weights pi_k; a small pi_k weakens that chart's tangent.
+    tangents : (N, D) or (N, D, L) chart frames, the top-variance direction is
+        used. None disables tangent alignment.
+    tangent_weight : strength of the tangent alignment relative to curvature.
 
-    Returns
-    -------
-    curves : list of dict
-        Copies of the input curves with added "points" and "spline" entries.
-        The means are interpolated exactly regardless of the weights.
+    Returns copies of the curves with "points" and "spline" added. The means are
+    interpolated exactly regardless of the weights.
     """
     points = np.asarray(points)
     W = None if weights is None else np.asarray(weights)
@@ -69,7 +55,7 @@ def build_spline(points_ordered, closed, weights=None, tangents=None, tangent_we
     For loops the parameter is periodic (f(1) == f(0)).
     """
     pts = np.asarray(points_ordered, dtype=float)
-    n, D = pts.shape
+    n = pts.shape[0]
     if n == 1:
         return _constant_spline(pts[0])
 
@@ -102,14 +88,11 @@ def build_spline(points_ordered, closed, weights=None, tangents=None, tangent_we
 
 def _solve_tangents(pts, segments, tang, wt, tangent_weight):
     """
-    Choose the derivative (tangent) m_i at each knot.
+    Choose the derivative m_i at each knot; returns m of shape (n, D).
 
-    We pick the tangents that make the curve as smooth as possible (least bending energy)
-    while nudging each one toward its chart tangent (strongly where pi_k is large, barely
-    where it is small).
-    This is a single quadratic in the tangents, so it comes down to one linear system.
-
-    Returns m (n, D): the tangent vector at every knot.
+    The tangents minimize the bending energy while being nudged toward their
+    chart tangent, strongly where pi_k is large and barely where it is small.
+    Both terms are quadratic in m, so this is one linear system.
     """
     n, D = pts.shape
 
@@ -164,9 +147,6 @@ def _hermite_spline(u, pts, m, periodic):
 
     return spline
 
-
-
-# small helpers
 
 def _norm_mean1(x):
     """Normalize non-negative weights to mean 1 (fall back to uniform)."""

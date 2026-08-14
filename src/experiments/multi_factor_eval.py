@@ -2,22 +2,17 @@
 Multi-factor experiment: several rotating MNIST digits at once.
 
 Different digits form separate connected components (H0); a digit swept over the
-full circle is a loop (H1), a partial sweep is an open arc. This is the mixed
-multi-structure case of the method (thesis 5.6), the counterpart to the single
-rotating digit of exp. 1.
+full circle is a loop (H1), a partial sweep an open arc. This is the mixed
+multi-structure case of §5.6.
 
-Deliberately lighter than the single-digit evaluation: TDA only, one noisy
-regime, no reconstruction decomposition or image strips. The outputs are the
-structural results (which is where the multi-factor story lives):
+Lighter than the single-digit evaluation: TDA only, one noise regime, and only
+the structural results, which is where the multi-factor story lives.
 
-    M1  topology       expected vs. detected #components + per-component type
-    M4  ARI            agreement of detected components with the digit labels
-    M2  angle error    per component, in degrees (loop / arc alignment)
+    M1  topology     expected vs. detected components and per-component type
+    M2  angle error  per component in degrees (loop / arc alignment)
+    M4  ARI          agreement of detected components with the digit labels
 
-plus two figures: the H0+H1 persistence diagram and a 2D-embedding scatter
-coloured by ground-truth digit vs. detected component.
-
-Results are written to  results/mnist_multi/<tag>/.
+Results are written to results/mnist_multi/<tag>/.
 """
 
 import os
@@ -39,12 +34,10 @@ def _component_labels(pipe, X):
     """
     Per-observation H0 connected-component label.
 
-    The 'detected component' scatter panel and the component-vs-digit ARI are
-    about H0 (which charts merge into one structure), not about the H1 curves an
-    observation happens to lie on. Each observation is therefore labelled by the
-    connected component of its nearest (kept) MFA chart, read straight from the
-    H0 clustering in `pipe.structure_["components"]` -- independent of the
-    loop / arc detection. Operates in the reduced space the charts live in.
+    The component scatter and the ARI are about H0, which charts merge into one
+    structure, not about the H1 curve an observation happens to lie on. Each
+    observation therefore inherits the component of its nearest kept chart,
+    independent of the loop / arc detection.
     """
     Z = pipe.pre.transform(np.asarray(X)) if pipe.pre is not None else np.asarray(X)
     kept = pipe.kept_
@@ -162,23 +155,17 @@ def _nearest_member(m_angles, target, periodic):
 
 def _match_specs_to_curves(cid, digit_id, curves, specs):
     """
-    Assign expected digits to detected curves one-to-one: every curve backs at
-    most one digit and every digit gets at most one curve. The score of a
-    (digit, curve) pair is their ground-truth overlap -- the number of that
-    digit's observations that are members of that curve, read off the finite
-    samples via the digit labels. We take the assignment that maximises the
-    total overlap (a bipartite maximum-weight matching, Hungarian algorithm), so
-    freeing a strong curve for one digit can push another digit onto its own
-    second-best curve rather than letting them fight over the same loop.
+    Assign expected digits to detected curves one-to-one, maximising total overlap.
 
-    If there are fewer usable curves than expected digits, only min(#digits,
-    #curves) can be matched; the leftover digits are reported unmatched
-    (curve=None). A pair with zero overlap is never assigned either -- a missing
-    loop is reported as a miss rather than forced onto an unrelated curve. Every
-    curve chosen by no digit is 'extra' (spurious / shortcut).
+    The score of a (digit, curve) pair is how many of that digit's observations
+    are members of that curve; the Hungarian algorithm then maximises the sum, so
+    two digits cannot fight over the same loop. Pairs with zero overlap are never
+    assigned, so a missing loop is a miss rather than forced onto an unrelated
+    curve, and surplus digits stay unmatched (curve=None).
 
-    Returns (matches, extra_curve_ids) where each match is
-        {digit, type ('loop'|'arc'), span, curve (int|None), n_overlap}.
+    Returns (matches, extra_curve_ids), where a match is
+    {digit, type ('loop'|'arc'), span, curve (int|None), n_overlap} and the extra
+    ids are the curves no digit claimed.
     """
     valid = [j for j, c in enumerate(curves) if c.get("spline") is not None]
     overlap = np.zeros((len(specs), len(valid)), dtype=int)
@@ -276,7 +263,7 @@ def run_evaluation(
     expected_types = ["loop" if _is_loop_spec(s) else "path" for s in specs]
 
     say("generating data ...")
-    X, angles, digit_id, meta, pmean, pstd = make_multi_rotation_dataset(
+    X, angles, digit_id, _, pmean, pstd = make_multi_rotation_dataset(
         specs, samples_per=samples_per, add_noise=noise, random_state=seed)
 
     say(f"fitting MFA ({n_components} components) ...")

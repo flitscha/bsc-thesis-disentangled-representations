@@ -1,9 +1,9 @@
 """
 Single-run evaluation orchestrator.
 
-'evaluate_run' takes a fitted+detected pipeline, a ground-truth factor and the
-data, computes the metrics (M1 topology, M2 angle error, M3 reconstruction decomposition, M4 ARI),
-renders the figures and writes everything to one self-contained run directory:
+'evaluate_run' takes a fitted and detected pipeline, a ground-truth factor and
+the data, computes M1-M4, renders the figures and writes everything into one
+self-contained run directory:
 
     results/<experiment>/<run_name>/
         summary.json   hyperparameters + scalar metrics

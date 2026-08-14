@@ -12,14 +12,12 @@ from matplotlib.figure import Figure
 
 def plot_persistence(diagram, title="Persistence diagram", h1_labels=None):
     """
-    Persistence diagram (birth vs death) with H0 and H1 features distinguished.
-    Infinite deaths are drawn on a line above the finite features.
+    Persistence diagram (birth vs death), H0 and H1 distinguished, with infinite
+    deaths on a line above the finite features.
 
-    h1_labels : list[dict] or None
-        Optional annotations for the H1 triangles, one dict per detected loop
-        with keys "birth", "death" and "label". The labels reuse the identity a
-        loop already has in the sweep figures (its matched digit, or "loop k"
-        for a spurious one), so the diagram and the strips name the same loops.
+    'h1_labels' annotates the H1 triangles, one dict per loop with keys "birth",
+    "death" and "label". The labels reuse the identity a loop has in the sweep
+    figures, so both name the same loops.
     """
     pts = {0: [], 1: []}
     for dim, (b, d) in diagram:

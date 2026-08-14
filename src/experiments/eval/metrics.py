@@ -1,14 +1,11 @@
 """
-evaluation metrics.
+Evaluation metrics.
 
-- M1 topology_report : H0 components + H1 loops (kept apart) vs expected.
-
-- M2 angle_error     : residual angular error (deg) after quotienting out the
-                       unrecoverable freedoms (see eval.align).
-
-- M3 reconstruction_error : (see reconstruct.py)
-
-- M4 discrete_ari    : agreement of detected components with ground-truth classes
+M1 topology_report : H0 components and H1 loops, kept apart, vs expected.
+M2 angle_error     : residual error after quotienting out the unrecoverable
+                     freedoms (see eval.align).
+M3                 : reconstruction decomposition, see reconstruct.py.
+M4 discrete_ari    : agreement of detected components with ground-truth classes.
 """
 
 import numpy as np
@@ -20,38 +17,24 @@ from experiments.eval.align import align_loop, align_arc
 def topology_report(structure, expected_n=None, expected_types=None,
                     component_labels=None):
     """
-    Compare the detected topology to the expected one, keeping the two
-    homology dimensions apart:
+    Compare the detected topology to the expected one, H0 and H1 kept apart.
 
-      H0 -- connected components: how many separate structures there are.
-      H1 -- loops: cycles that live *within* a component. A single component
-            can carry several loops, and a component with no loop is traced as
-            an open path instead.
+    'expected_n' is the expected number of components; 'expected_types' says per
+    component whether it should be a "loop" or an open "path". "match" holds only
+    if component, loop and path counts all agree, so closing an arc into a loop
+    is a mismatch even when H0 is perfect.
 
-    `expected_n` is the number of expected components (H0). `expected_types`
-    lists, per expected component, whether it should be a "loop" or an open
-    "path" (H1); their counts give the expected number of loops / paths. The
-    overall "match" holds iff the component count, the loop count and the path
-    count all agree -- so closing an open arc into a loop shows up as an H1
-    mismatch even when H0 is perfect.
-
-    `component_labels`, if given, is the per-observation component assignment.
-    The H0 count is then the number of components that actually contain data,
-    which is what the component scatter shows. Without it the count falls back
-    to the chart-level labels in `structure["components"]`, which can include a
-    "phantom" component of charts that no observation is nearest to.
-
-    Returns a dict with the H0 block, the H1 block, and (for backwards
-    compatibility) the per-structure `n_detected` / `types_detected` fields.
+    'component_labels' is the per-observation component assignment; given it, H0
+    counts only components that contain data. Without it the chart-level labels
+    are used, which may include a component no observation is nearest to.
     """
     curves = structure["curves"]
     det_types = [c["type"] for c in curves]
     n_loops = int(sum(t == "loop" for t in det_types))
     n_paths = int(sum(t == "path" for t in det_types))
 
-    # H0: connected components. Prefer the data-backed count (components that
-    # actually contain observations); otherwise the chart-level labels, and as a
-    # last resort the distinct components the detected curves live in.
+    # prefer the data-backed count, then the chart-level labels, and finally the
+    # distinct components the detected curves live in
     if component_labels is not None:
         cl = np.asarray(component_labels)
         n_components = int(np.unique(cl[cl >= 0]).size)
@@ -72,18 +55,18 @@ def topology_report(structure, expected_n=None, expected_types=None,
     match = bool(components_match and loops_match and paths_match)
 
     return {
-        # H0 -- connected components (how many separate structures)
+        # H0: how many separate structures
         "n_components": n_components,
         "n_components_expected": expected_n,
         "components_match": bool(components_match),
-        # H1 -- loops (+ open paths) living *within* the components
+        # H1: loops and open paths living within the components
         "n_loops": n_loops,
         "n_paths": n_paths,
         "n_loops_expected": n_loops_exp,
         "n_paths_expected": n_paths_exp,
         "loops_match": bool(loops_match),
         "paths_match": bool(paths_match),
-        # legacy: one entry per detected structure (loop or path)
+        # flat view: one entry per detected structure, used by the single-digit run
         "n_detected": len(curves),
         "types_detected": det_types,
         "n_expected": expected_n,

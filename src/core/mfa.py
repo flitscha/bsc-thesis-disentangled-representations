@@ -1,13 +1,11 @@
 """
-Pipeline step 2 (thesis §5.3): fit a Mixture of Factor Analyzers (MFA) and
-interpret it as a local geometry learner.
+Pipeline step §5.3: fit a Mixture of Factor Analyzers and read it as a local
+geometry learner.
 
-The MFA is fitted as a density model, but its factor loading matrices W_k are
-reinterpreted geometrically: span(W_k) approximates the local tangent space of
-the data manifold at component k. `extract_tangent_frame` turns each W_k into an
-orthonormal tangent frame via thin QR. Together, the pairs (mean_k, frame_k)
-form a discrete sample of the tangent bundle of the manifold (an "atlas" of
-local charts), which the downstream steps use to build a distance matrix.
+The MFA is fitted as a density model, but span(W_k) of its factor loading
+matrices approximates the local tangent space at component k.
+'extract_tangent_frame' turns each W_k into an orthonormal frame, so the pairs
+(mean_k, frame_k) form an atlas of local charts for the later pipeline steps.
 """
 
 import numpy as np
@@ -18,27 +16,11 @@ from vamm import Gaussian
 
 def fit_mfa(data, C, H, cov_type="mfa", shared=False, seed=None):
     """
-    Fit a (mixture of) Gaussian model to the data.
+    Fit a (mixture of) Gaussian model to (N, D) data.
 
-    Parameters
-    ----------
-    data : (N, D) array
-    C : int
-        Number of mixture components.
-    H : int
-        Latent / local manifold dimension (only used for cov_type "mfa").
-    cov_type : {"isotropic", "diagonal", "mfa", "full"}
-    shared : bool
-        Whether the covariance is shared across components.
-    seed : int or None
-        RNG seed for the fit.
-
-    Returns
-    -------
-    model : vamm.Gaussian
-        The fitted model.
-    obj : float
-        Final training objective.
+    C is the number of components, H the local manifold dimension (cov_type
+    "mfa" only), cov_type one of "isotropic"/"diagonal"/"mfa"/"full".
+    Returns the fitted model and its final training objective.
     """
     _, D = np.asarray(data).shape
     model = Gaussian(C=C, D=D, covariance_type=cov_type, shared=shared, H=H)
@@ -48,27 +30,11 @@ def fit_mfa(data, C, H, cov_type="mfa", shared=False, seed=None):
 
 def mfa_log_likelihood(model, X):
     """
-    Exact per-sample log-density log p_Theta(x_n) of a fitted (mixture of)
-    Gaussian model, evaluated on (held-out) data.
+    Exact per-sample log-density of the mixture p(x) = sum_k pi_k N(x|mu_k, Sigma_k).
 
-    The model defines the Gaussian-mixture density
-        p(x) = sum_k pi_k * N(x | mu_k, Sigma_k),
-    with mixing weights pi_k (`model.prior`), means mu_k (`model.means`) and
-    covariances Sigma_k = W_k W_k^T + Psi_k (`model.covariances`). This is
-    computed directly instead of using the value returned by `model.fit`, which
-    is only a truncated variational objective on the *training* set.
-
-    Parameters
-    ----------
-    model : vamm.Gaussian
-        A fitted model (any covariance_type).
-    X : (N, D) array
-        Points to score, in the same space the model was fitted in.
-
-    Returns
-    -------
-    log_p : (N,) ndarray
-        Log-density of each point under the mixture.
+    Computed directly rather than taken from 'model.fit', whose return value is
+    a truncated variational objective on the training set only. X must live in
+    the space the model was fitted in.
     """
     return logsumexp(_component_log_probs(model, X), axis=1)
 
@@ -77,12 +43,9 @@ def _component_log_probs(model, X):
     """
     Per-component log joint log[pi_k * N(x | mu_k, Sigma_k)], shape (N, C).
 
-    Summing the rows with logsumexp gives the mixture log-density
-    (`mfa_log_likelihood`); taking the per-row argmax gives the responsible
-    component (`mfa_reconstruct`). For cov_type "mfa" the Gaussian is evaluated
-    via the Woodbury identity / matrix determinant lemma, which is O(N C D H)
-    instead of O(N C D^3) for the dense (D, D) form (vamm itself warns that
-    `covariances` is expensive for large D).
+    Row-wise logsumexp gives the mixture density, row-wise argmax the responsible
+    component. For cov_type "mfa" the Woodbury identity keeps this at O(N C D H)
+    instead of O(N C D^3) for the dense (D, D) covariance.
     """
     X = np.asarray(X)
     means = np.asarray(model.means)
@@ -120,28 +83,11 @@ def _component_log_probs(model, X):
 
 def average_nll(model, X, per_dim=True):
     """
-    Average negative log-likelihood of the model on `X`, optionally normalized
-    by the ambient dimension (thesis §5.2, NLL_norm).
+    Average negative log-likelihood on X, by default divided by D (§5.2, NLL_norm).
 
-    NLL_norm = -1 / (N * D) * sum_n log p_Theta(x_n)
-
-    Dividing by D removes the trivial growth of the log-density with the number
-    of dimensions, making the score comparable across different PCA dimensions.
-    (As noted in the thesis, scores at different D still describe different
-    reduced representations, so they mainly reflect training stability + fit.)
-
-    Parameters
-    ----------
-    model : vamm.Gaussian
-        A fitted model.
-    X : (N, D) array
-        Evaluation data (use a held-out validation set).
-    per_dim : bool
-        If True, also divide by the ambient dimension D.
-
-    Returns
-    -------
-    nll : float
+    Dividing by D removes the trivial growth of the log-density with dimension.
+    Scores at different D still describe different reduced representations, so
+    they mainly reflect fit quality and training stability. Use held-out data.
     """
     log_p = mfa_log_likelihood(model, X)
     nll = -log_p.mean()
@@ -152,31 +98,13 @@ def average_nll(model, X, per_dim=True):
 
 def mfa_reconstruct(model, X):
     """
-    Reconstruct each point through the MFA model (posterior-mean denoising).
-
-    Each x is assigned to its most responsible component k (argmax posterior),
-    and reconstructed as the factor-analyzer posterior mean
+    Reconstruct each point as the posterior mean of its most responsible component:
 
         x_hat = mu_k + W_k (I + W_k^T Psi_k^-1 W_k)^-1 W_k^T Psi_k^-1 (x - mu_k).
 
-    This projects x onto the low-rank local subspace of its component while the
-    diagonal noise Psi_k is absorbed. It is the best the fitted model can
-    represent x with, and therefore serves as the representational floor for
-    reconstruction-based evaluation, independent of any recovered ordering or
-    factor. Operates in the space the model was fitted in (e.g. the reduced
-    PCA + rotation space); lift back to ambient space separately if needed.
-
-    Parameters
-    ----------
-    model : vamm.Gaussian
-        A fitted MFA model (covariance_type="mfa").
-    X : (N, D) array
-        Points in the model's space.
-
-    Returns
-    -------
-    X_hat : (N, D) ndarray
-        Posterior-mean reconstruction of each point.
+    This is the best the fitted model can represent x with, independent of any
+    recovered ordering, and serves as the reconstruction floor in the evaluation.
+    Operates in the space the model was fitted in; lift back separately.
     """
     if model.covariance_type != "mfa":
         raise NotImplementedError(
@@ -207,37 +135,20 @@ def mfa_reconstruct(model, X):
 
 def extract_tangent_frame(loadings: np.ndarray, n_tangents: int = 1, noise: np.ndarray = None):
     """
-    Extract an orthonormal basis of the local tangent space from each MFA
-    factor loading matrix W_k via the thin QR decomposition W_k = T_k R_k.
-
-    The column space of W_k is interpreted as the local tangent space of the
-    data manifold at component k. QR yields an orthonormal basis T_k of exactly
-    that subspace (span(T_k) = span(W_k)). For n_tangents = 1 this reduces to
-    normalizing the single tangent vector.
+    Orthonormal tangent frames from the loading matrices via thin QR, W_k = T_k R_k.
 
     Parameters
     ----------
-    loadings : array of shape (N, D, H)
-        Factor loading matrices W_k, e.g. 'model.A' of a vamm MFA model.
-    n_tangents : int
-        Local manifold dimension to keep per component (n_tangents <= H).
-    noise : array of shape (N, D) or None
-        Optional diagonal MFA noise variances Psi_k (e.g. 'model.variance').
-        If given, noise_var[i] is their mean; otherwise noise_var is all zeros.
+    loadings : (N, D, H) factor loading matrices W_k ('model.A').
+    n_tangents : directions to keep per component, at most H.
+    noise : (N, D) diagonal MFA noise variances Psi_k ('model.variance'), optional.
 
     Returns
     -------
-    tangents : ndarray, shape (N, D, n_tangents)
-        Orthonormal tangent frames. tangents[i, :, k] is the k-th tangent
-        direction at component i, ordered by descending captured variance.
-    variances : ndarray, shape (N, n_tangents)
-        Variance captured along each tangent direction, computed as the squared
-        row norms of R_k. Their sum equals ||W_k||_F^2, i.e. the total variance
-        the loading matrix contributes to the tangent space. Useful for
-        weighting: a direction with tiny variance is unreliable.
-    noise_var : ndarray, shape (N,)
-        Mean diagonal noise variance per component (0 if 'noise' is None).
-        Approximates the off-manifold noise level of the MFA model.
+    tangents : (N, D, n_tangents) frames, ordered by descending captured variance.
+    variances : (N, n_tangents) variance along each direction; a tiny value marks
+        an unreliable direction.
+    noise_var : (N,) mean noise variance per component, 0 if 'noise' is None.
     """
     loadings = np.asarray(loadings)
     N, D, H = loadings.shape
@@ -252,14 +163,11 @@ def extract_tangent_frame(loadings: np.ndarray, n_tangents: int = 1, noise: np.n
     noise_var = np.zeros(N)
 
     for i, W in enumerate(loadings):
-        # thin QR: W (D, H) = T (D, H) @ R (H, H), T has orthonormal columns
-        T, R = np.linalg.qr(W)
+        T, R = np.linalg.qr(W)  # T (D, H) has orthonormal columns
 
-        # variance captured along tangent direction j equals ||W^T t_j||^2,
-        # which (since W = T R) is the squared norm of the j-th row of R.
-        row_var = np.sum(R ** 2, axis=1)  # (H,)
+        # variance along direction j is ||W^T t_j||^2 = squared norm of row j of R
+        row_var = np.sum(R ** 2, axis=1)
 
-        # keep the n_tangents directions capturing the most variance
         order = np.argsort(row_var)[::-1][:n_tangents]
         tangents[i] = T[:, order]
         variances[i] = row_var[order]
@@ -270,78 +178,8 @@ def extract_tangent_frame(loadings: np.ndarray, n_tangents: int = 1, noise: np.n
     return tangents, variances, noise_var
 
 
-def chart_overlap(tangents_i: np.ndarray, tangents_j: np.ndarray) -> float:
-    """
-    Measure how well two local tangent frames agree (chart compatibility).
-
-    For 1D (tangents are vectors): this is |cos θ|, i.e. |dot product|.
-    For nD (tangents are frames):  this is the sum of squared singular values
-    of the cross-Gram matrix, normalized to [0, 1].
-
-    A value of 1.0 means the two frames span exactly the same subspace.
-    A value of 0.0 means the tangent spaces are orthogonal (very different).
-
-    Parameters
-    ----------
-    tangents_i : (D, n_tangents)
-    tangents_j : (D, n_tangents)
-
-    Returns
-    -------
-    overlap : float in [0, 1]
-    """
-    # Cross-Gram matrix: how much does frame i project onto frame j?
-    G = tangents_i.T @ tangents_j  # (n_tangents, n_tangents)
-    # Sum of squared singular values = squared Frobenius norm of projection
-    overlap = np.linalg.norm(G, 'fro') ** 2
-    n = tangents_i.shape[1]
-    return float(overlap / n)  # normalized: max = 1
-
-
-def direction_alignment(mean_i, mean_j, tangents_i, tangents_j):
-    """
-    How well does the connecting vector (mean_i -> mean_j) align
-    with the tangent frames of both components?
-
-    Used in graph construction to prefer neighbors that lie along the manifold,
-    not across it.
-
-    Parameters
-    ----------
-    mean_i, mean_j : (D,)
-    tangents_i, tangents_j : (D, n_tangents)
-
-    Returns
-    -------
-    align : float in [0, 1]
-        1 = connecting vector lies entirely in both tangent spaces
-        0 = connecting vector is perpendicular to both tangent spaces
-    """
-    d = mean_j - mean_i
-    norm = np.linalg.norm(d)
-    if norm < 1e-10:
-        return 1.0
-    d = d / norm
-
-    # project d onto each tangent frame, measure how much is captured
-    proj_i = np.linalg.norm(tangents_i.T @ d)  # in [0, 1] since tangents orthonormal
-    proj_j = np.linalg.norm(tangents_j.T @ d)
-
-    return float(0.5 * (proj_i + proj_j))
-
-
 def atlas_summary(means, tangents, variances, noise_var):
-    """
-    Print a readable summary of the fitted tangent frames.
-    Useful for quick sanity checks after training.
-
-    Parameters
-    ----------
-    means     : (N, D)
-    tangents  : (N, D, n_tangents)
-    variances : (N, n_tangents)
-    noise_var : (N,)
-    """
+    """Print a sanity-check summary of the fitted tangent frames."""
     N, D = means.shape
     n_t = tangents.shape[2]
     snr = variances.mean(axis=1) / (noise_var + 1e-12)

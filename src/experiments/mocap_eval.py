@@ -1,22 +1,20 @@
 """
 Motion capture experiment: several motions of one person at once.
 
-The only experiment on data that are not images. An observation is a pose - the
-93 coordinates of 31 joints - and a component is a motion the subject performed:
-walking and running come back to the pose they started from and are therefore
-loops (H1), while waving (the arm travels out and back along the same path) and
-sitting down are open arcs.
+The only experiment on data that are not images. An observation is a pose, the 93
+coordinates of 31 joints, and a component is one motion: walking and running
+return to the pose they started from and are loops, while waving (the arm travels
+out and back along the same path) and sitting down are open arcs.
 
-The ground-truth factor is the progress within one repetition, in percent of the
-gait cycle / of the movement, cut from a physical signal (the gap between the
-feet, the hand position, the hip height) and never from the fitted model.
+The ground-truth factor is the progress within one repetition in percent, cut
+from a physical signal (foot gap, hand position, hip height), never from the
+fitted model.
 
-Reported:
-- M1  topology        expected vs. detected #components + per-component type
-- M4  ARI             agreement of detected components with the motion labels
-- M2  progress error  per component, in percent of its repetition
+    M1  topology        expected vs. detected components and per-component type
+    M2  progress error  per component, in percent of its repetition
+    M4  ARI             agreement of detected components with the motion labels
 
-Results are written to  results/mocap/<tag>/.
+Results are written to results/mocap/<tag>/.
 """
 
 import os

@@ -1,37 +1,27 @@
 """
 Motion capture poses from the CMU Graphics Lab Motion Capture Database.
 
-This is the one experiment whose observations are not images: an observation is
-a *pose*, the 3D positions of the 31 joints of a skeleton, so the data vector is
-93-dimensional and can be drawn as a stick figure.
+The one experiment whose observations are not images: an observation is a pose,
+the 3D positions of 31 skeleton joints, so a data vector is 93-dimensional and
+can be drawn as a stick figure. A recording becomes a dataset in three steps:
 
-A recording is turned into a dataset in three steps:
+1. 'Skeleton' reads the .asf (bone directions, lengths, local axes) and runs
+   forward kinematics on every .amc frame (joint angles) to get world positions.
+2. 'canonical_poses' removes global position and heading, leaving a body-centred
+   frame (x = right, y = up, z = forward). The root height stays, since bobbing
+   up and down is part of the movement.
+3. Each motion is cut into repetitions along a physical signal, never the fitted
+   model. Periodic motions give cycles and become loops; one-way movements such
+   as sitting down give arcs.
 
-1. `Skeleton` reads the subject's .asf (bone directions, lengths and local axes)
-   and runs forward kinematics on every frame of a .amc (joint angles) to get
-   world joint positions.
-2. `canonical_poses` removes what the experiment is not about: the global
-   position and the heading of the body. What is left is the pose in a
-   body-centred frame (x = right, y = up, z = forward) with the root height kept,
-   because bobbing up and down is part of the movement.
-3. Each motion is cut into its repetitions, using a physical signal that is
-   independent of the model (the forward swing of a foot, the height of a hand,
-   the height of the root). A periodic motion gives cycles and becomes a closed
-   loop; a one-way movement such as sitting down gives descents and becomes an
-   open arc.
+The ground-truth factor is the progress within one repetition in percent, so
+0 % and 100 % of a gait cycle are the same pose while 0 % of "sit down" is
+standing and 100 % is seated.
 
-The ground-truth factor is the progress within one repetition, in percent, for
-both kinds: 0 % and 100 % of a gait cycle are the same pose (the loop closes),
-0 % of "sit down" is standing and 100 % is seated. Cycle boundaries come from
-the physical signal, never from the fitted model.
-
-The recordings live in `data/cmu_mocap/` and are not part of the repository; run
-`python -m data.mocap` (from src/) once to download the trials this module uses.
-Joint positions are cached per subject in a single .npz.
-
-As for the image datasets, `make_multi_motion_dataset` returns X standardized,
-with pose_mean / pose_std to invert it for display:
-    pose = (v * pose_std + pose_mean).reshape(31, 3)
+Recordings live in 'data/cmu_mocap/' and are not in the repository; run
+'python -m data.mocap' from src/ once to download them. Joint positions are
+cached per subject. 'make_multi_motion_dataset' returns X standardized, invert
+it for display via pose = (v * pose_std + pose_mean).reshape(31, 3).
 """
 
 import os
@@ -69,25 +59,20 @@ SUBJECT = "143"
 # the swing of a single foot.
 GAIT_SIGNAL = (("lfoot", "z", 1.0), ("rfoot", "z", -1.0))
 
-# The motions of the experiment. `signal` is the physical scalar the
-# repetitions are cut from: a weighted sum of joint coordinates in the
-# body-centred frame. `cut` says how it is cut, which is also what fixes the
-# expected topology:
+# The motions of the experiment. `signal` is the physical scalar the repetitions
+# are cut from, a weighted sum of joint coordinates in the body-centred frame.
+# `cut` says how, which also fixes the expected topology:
 #
-#   "cycle"      peak to peak. The pose comes back to where it started, so the
-#                component is a LOOP: walking, running.
-#   "swing"      extremum to extremum, i.e. half a period. A wave is periodic
-#                in time but the arm travels out and back along the *same* path,
-#                so the pose never goes round anything: the component is an ARC
-#                and one repetition is one swing, in whichever direction it is
-#                performed. Its progress is the signal itself (where the hand
-#                is), not the time, because single swings differ in reach.
+#   "cycle"      peak to peak; the pose returns to its start, so a LOOP.
+#   "swing"      extremum to extremum, i.e. half a period. A wave is periodic in
+#                time, but the arm travels out and back along the SAME path, so
+#                the component is an ARC. Progress is the signal itself (where
+#                the hand is), not time, since swings differ in reach.
 #   "transition" from the high plateau of the signal to the low one (or back,
 #                with `rising`): a one-way movement, again an ARC.
 #
-# The trials are those in which the subject performs the motion steadily. Four
-# run trials are needed because a single run of this subject is only two strides
-# long, while a walking trial is long enough on its own.
+# Four run trials are needed because a single run of this subject is only two
+# strides long, while one walking trial is long enough on its own.
 MOTIONS = (
     {"name": "walk", "trials": ("143_32", "143_29"), "kind": "loop",
      "cut": "cycle", "signal": GAIT_SIGNAL,
@@ -570,40 +555,24 @@ def make_multi_motion_dataset(
     progress=None,
 ) -> tuple:
     """
-    Several motions of the same person, stacked into one dataset.
-
-    Every spec is a different motion and therefore a separate connected
-    component. A periodic motion (walking, running, waving) closes into a loop,
-    a one-way movement (sitting down) stays an open arc.
+    Several motions of one person stacked into one dataset, one component each.
 
     Parameters
     ----------
-    specs : list of dict
-        One entry per component. Recognised keys:
-            motion  : str, one of MOTION_NAMES
-            samples : int, frames for this component (default samples_per)
-    samples_per : int
-        Default number of frames per component. The frames are drawn evenly
-        from all repetitions the motion has, so every repetition contributes.
-    center : bool
-        Standardize X: subtract the mean pose and divide by one global scale.
-    add_noise : float
-        Std of Gaussian noise on the joint coordinates, in metres, added before
-        the standardization (0.01 = 1 cm of marker jitter).
-    progress : callable(done, total) or None
-        Called while the recordings are read, which takes a moment the first
-        time (afterwards they come from the cache).
+    specs : one dict per component, keys "motion" (a MOTION_NAMES entry) and
+        optionally "samples" (frames for this component, default samples_per).
+    samples_per : frames per component, drawn evenly across all repetitions of
+        the motion so every repetition contributes.
+    center : standardize X by the mean pose and one global scale.
+    add_noise : std of joint noise in metres, added before standardization.
+    progress : callable(done, total), called while reading the recordings.
 
     Returns
     -------
-    X          : (N, 93) standardized (+ noise) poses
-    values     : (N,) progress within the repetition, in percent
-    motion_id  : (N,) index into `specs` a frame belongs to; the discrete
-                 ground-truth label
-    meta       : list of dict, one per spec, with "motion", "kind", "is_loop",
-                 "n_frames" (before subsampling) and the sample range "sl"
-    pose_mean  : (93,) mean pose (0 if center=False)
-    pose_std   : (93,) global scale, broadcast to every coordinate
+    X : (N, 93) standardized poses, values : (N,) progress in percent,
+    motion_id : (N,) index into `specs` (the discrete ground-truth label),
+    meta : per spec "motion", "kind", "is_loop", "n_frames" and sample range "sl",
+    pose_mean : (93,), pose_std : (93,) global scale broadcast to all coordinates.
     """
     rng = np.random.default_rng(random_state)
     blocks, values, motion_id, meta = [], [], [], []

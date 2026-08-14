@@ -130,23 +130,14 @@ def embed_data_to_dimension(
     data, new_dimension, noise=0.005, random_rotation=True, random_state=None
 ):
     """
-    Embed low-dimensional data into a higher-dimensional space.
+    Embed (N, D) data into 'new_dimension' >= D dimensions.
 
-    Parameters
-    ----------
-    data            : (N, D)
-    new_dimension   : int, must be >= D
-    noise           : std of isotropic Gaussian noise added after embedding
-    random_rotation : if True, random orthonormal projection
-    random_state    : for reproducibility
-
-    Returns
-    -------
-    data_high          : (N, new_dimension)
-    projection_matrix  : (new_dimension, D) -- Matrix W such that data_high = data @ W.T
+    Uses a random orthonormal projection unless 'random_rotation' is False, then
+    adds isotropic Gaussian noise of std 'noise'. Returns the embedded points and
+    the map W with data_high = data @ W.T.
     """
     rng = _make_rng(random_state)
-    N, D = data.shape
+    D = data.shape[1]
 
     if new_dimension < D:
         raise ValueError("new_dimension must be >= original dimension")

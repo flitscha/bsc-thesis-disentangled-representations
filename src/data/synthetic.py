@@ -27,29 +27,14 @@ _GENERATORS = {
 
 def make_dataset(data_type, n, embed_dim=None, noise=0.005, seed=None):
     """
-    Generate a synthetic manifold dataset.
+    Generate a synthetic manifold dataset of n points.
 
-    Parameters
-    ----------
-    data_type : str
-        One of {"line", "circle", "swiss_roll", "torus", "curve_in_3d"}.
-    n : int
-        Number of points.
-    embed_dim : int or None
-        If given (and > 0), embed the data into this many ambient dimensions
-        via a random orthonormal map plus isotropic noise.
-    noise : float
-        Standard deviation of the embedding noise (only used if embed_dim set).
-    seed : int or None
-        Seed for reproducibility.
+    'data_type' is one of _GENERATORS. A positive 'embed_dim' embeds the points
+    into that many ambient dimensions via a random orthonormal map plus isotropic
+    noise of standard deviation 'noise'.
 
-    Returns
-    -------
-    X : (n, D) array
-        The (possibly embedded) point cloud.
-    projection_matrix : (embed_dim, D_intrinsic) array or None
-        The embedding map W with X = data @ W.T, or None if not embedded.
-        Useful for visualizing the model back in the intrinsic coordinates.
+    Returns the point cloud and the embedding map W with X = data @ W.T (None if
+    not embedded), which lets a model be visualized in intrinsic coordinates.
     """
     if data_type not in _GENERATORS:
         raise ValueError(

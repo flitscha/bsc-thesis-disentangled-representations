@@ -63,7 +63,7 @@ def visualize_gmm(
         )
         return
 
-    N, D = data.shape
+    D = data.shape[1]
     if D == 2:
         _visualize_gmm_nd(ax, data, means, covariances, priors, draw_points, visualisation_mode, draw_means)
     elif D == 3:

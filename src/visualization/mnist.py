@@ -41,13 +41,11 @@ def render_samples_frame(fig, X, angles, digit, pixel_mean=None, pixel_std=None)
 
 def render_persistence_frame(fig, diagram, curves=None, selected=None):
     """
-    Persistence diagram (birth vs death) of the detected structure: H0 gives the
-    connected components, H1 the loops. Infinite deaths are drawn on a line above
-    the finite features.
+    Persistence diagram of the detected structure: H0 gives the components, H1
+    the loops, infinite deaths sit on a line above the finite features.
 
-    Each detected loop is annotated at its own H1 point with its component index
-    (the same number as in the "component to traverse" selector); the loop
-    matching `selected` is ringed, so it is clear which triangle is which loop.
+    Each loop is annotated with its component index, the same number as in the
+    "component to traverse" selector; the loop matching 'selected' is ringed.
     """
     ax = fig.add_subplot(111)
     if not diagram:

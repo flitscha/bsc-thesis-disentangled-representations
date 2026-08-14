@@ -4,7 +4,7 @@ by graph traversal.
 
 The core routine 'order_along_path' lays out a set of components along the
 diameter of their minimum spanning tree.
-The TDA detector (§5.6) reuses it to order each open component (components withoud loop).
+The TDA detector (§5.6) reuses it to order each component without a loop.
 
 'detect_traversal' orders all components into a single curve and decides
 whether that curve closes into a loop.

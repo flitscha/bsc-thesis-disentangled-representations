@@ -568,7 +568,7 @@ class MNISTDemoTab:
             return
 
         try:
-            summary, out_dir = run_multi_evaluation(
+            _, out_dir = run_multi_evaluation(
                 specs=specs,
                 noise=dpg.get_value(self.noise_in),
                 n_components=dpg.get_value(self.n_comp_in),
@@ -653,7 +653,7 @@ class MNISTDemoTab:
         if not self.curves:
             return []
         # majority ground-truth digit per detected structure (for the label only)
-        t, cid = self.exp.transform(self.X)
+        _, cid = self.exp.transform(self.X)
         labels = []
         for j, curve in enumerate(self.curves):
             comp = curve.get("component")

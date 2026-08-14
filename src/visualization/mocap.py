@@ -1,14 +1,13 @@
 """
 Visualizations for the motion capture demo.
 
-The observations are poses, not images, so the frames that show data are stick
-figures instead of `imshow`. Everything else (the 3D PCA view, the persistence
-diagram) is identical to the other demos and reused from `visualization.mnist`.
+The observations are poses, not images, so data frames are stick figures instead
+of 'imshow'. The 3D PCA view and the persistence diagram are reused unchanged
+from 'visualization.mnist'.
 
-A pose is drawn with a fixed oblique projection: the camera looks at the body
-from the side, turned by `VIEW_AZIMUTH` degrees, so that the walking profile
-stays readable while movements across the body (the swing of a waving arm) do
-not collapse onto a single line.
+A pose uses a fixed oblique projection, turned by 'VIEW_AZIMUTH' degrees, so the
+walking profile stays readable while movements across the body (a waving arm) do
+not collapse onto a line.
 """
 
 import numpy as np

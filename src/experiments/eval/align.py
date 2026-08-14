@@ -1,15 +1,15 @@
 """
 Post-hoc alignment of a learned 1D coordinate to a ground-truth factor.
 
-The model is unsupervised and can recover the factor only up to a small set of freedoms:
+The model is unsupervised and recovers the factor only up to a few freedoms,
+which are the only ones fitted out here:
 
-- loop: direction s in {+1, -1} and offset delta.
+    loop: direction s in {+1, -1} and offset delta.
+    arc:  direction and scale, since t is always in [0, 1] while the true factor
+          may span 0..180 or 0..90.
 
-- arc: direction and scale. The model does not know, if an arc apans 0..180
-  or 0..90. The variable t is always in [0, 1]
-
-In both cases we DO NOT fit out non-linear speed distortion: a non-uniform
-traversal shows up as residual.
+Non-linear speed distortion is deliberately NOT fitted out: a non-uniform
+traversal stays visible as a residual.
 """
 
 import numpy as np
@@ -19,14 +19,8 @@ def align_loop(t, theta_deg):
     """
     Align a loop coordinate t in [0, 1) to a periodic ground-truth angle (deg).
 
-    Returns
-    -------
-    dict with
-        s          : +1 or -1 (recovered direction)
-        delta_deg  : offset in degrees
-        error_deg  : (N,) unsigned angular residual in degrees
-        theta_of_t : callable t -> predicted angle (deg, in [0, 360))
-        t_of_theta : callable angle(deg) -> t in [0, 1)
+    Returns the recovered direction "s", the offset "delta_deg", the (N,) unsigned
+    residual "error_deg" and the two conversions "theta_of_t" / "t_of_theta".
     """
     t = np.asarray(t, dtype=float)
     theta = np.asarray(theta_deg, dtype=float)
@@ -48,16 +42,11 @@ def align_loop(t, theta_deg):
 
 def align_arc(t, factor):
     """
-    Align an arc coordinate t in [0, 1] to an interval-valued ground-truth
-    factor by the best affine map factor ~ a * t + b.
+    Align an arc coordinate t in [0, 1] to an interval-valued ground-truth factor
+    by the best affine map factor ~ a * t + b.
 
-    Returns
-    -------
-    dict with
-        a, b        : affine coefficients
-        error       : (N,) unsigned residual in the factor's units
-        factor_of_t : callable t -> predicted factor
-        t_of_factor : callable factor -> t
+    Returns the coefficients "a"/"b", the (N,) unsigned residual "error" in the
+    factor's units and the two conversions "factor_of_t" / "t_of_factor".
     """
     t = np.asarray(t, dtype=float)
     y = np.asarray(factor, dtype=float)

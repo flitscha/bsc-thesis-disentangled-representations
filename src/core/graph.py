@@ -50,21 +50,14 @@ def local_metric_matrix(
     return 0.5 * (length + length.T) # symmetrize over both endpoints
 
 
-# A chart whose mixing weight pi_k falls below this fraction of the uniform
-# weight 1/N holds essentially no data. Such near-empty charts are dropped
-# before the geodesic graph is built.
+# A chart whose mixing weight falls below this fraction of the uniform weight
+# 1/N holds essentially no data and is dropped before building the graph.
 _MIN_WEIGHT_FRACTION = 1e-2
 
 def prune_low_weight_components(weights: np.ndarray) -> np.ndarray:
     """
-    Indices of the components to keep, dropping charts with negligible mass.
-
-    As a safety net, if the threshold would leave fewer than two charts,
-    all are kept.
-
-    Returns
-    -------
-    keep : (M,) int array of surviving component indices (M <= N), ascending.
+    Ascending indices of the components to keep, dropping near-empty charts.
+    All are kept if the threshold would leave fewer than two.
     """
     weights = np.asarray(weights, dtype=float)
     N = weights.shape[0]
@@ -100,22 +93,15 @@ def riemannian_distance_matrix(
     n_neighbors: int = 5,
 ) -> np.ndarray:
     """
-    Geodesic distance matrix over the MFA components.
-
-    Local edge lengths come from the tangent-stretch metric, and distances are
-    shortest paths in the resulting k-nearest-neighbor graph. The result is a
-    proper metric.
-
-    Returns
-    -------
-    distances : (N, N), non-negative, symmetric, zero diagonal.
+    Geodesic (N, N) distance matrix over the MFA components: shortest paths in
+    the k-nearest-neighbor graph of the tangent-stretch edge lengths.
     """
     length = local_metric_matrix(means, tangents, lambda_aniso)
     graph = _neighbor_graph(length, n_neighbors)
     distances = shortest_path(graph, method="D", directed=False)
 
-    # A disconnected graph leaves some pairs unreachable (inf). Keep them finite
-    # but far beyond any real distance so they stay separate in the analysis.
+    # Unreachable pairs of a disconnected graph: keep them finite but far beyond
+    # any real distance, so they stay separate in the analysis.
     if not np.isfinite(distances).all():
         finite_max = distances[np.isfinite(distances)].max()
         distances[~np.isfinite(distances)] = 2.0 * finite_max

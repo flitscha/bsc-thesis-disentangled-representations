@@ -292,23 +292,3 @@ class SyntheticDemoTab:
 
         dpg.set_value(self.texture_tag, buf.flatten())
 
-
-# TODO: move starting point to main.py
-def main():
-    dpg.create_context()
-    dpg.create_viewport(title="MFA Demo", width=1150, height=820)
-
-    with dpg.window(label="MFA Demo", tag="primary_window"):
-        with dpg.tab_bar():
-            SyntheticDemoTab(parent=dpg.last_item())
-
-    dpg.setup_dearpygui()
-    dpg.show_viewport()
-    dpg.set_primary_window("primary_window", True)
-    dpg.start_dearpygui()
-    dpg.destroy_context()
-
-
-if __name__ == "__main__":
-    main()
-

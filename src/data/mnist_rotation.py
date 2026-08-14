@@ -1,13 +1,9 @@
 """
-Generates a dataset of MNIST digits rotated 0..360 degrees.
+Datasets of MNIST digits rotated through 0..360 degrees.
 
-Noise is added in pixel space.
-The returned X is then standardized: per-pixel mean removed and divided by a
-single global scale.
-
-Returns X, angles, pixel_mean and pixel_std.
-mean and std are only needed to invert the standardization for display, i.e. to turn a
-standardized vector back into a [0, 1] image:
+Noise is added in pixel space, then X is standardized: per-pixel mean removed
+and divided by a single global scale. The returned pixel_mean / pixel_std are
+only needed to invert that for display, via
     img = (v * pixel_std + pixel_mean).reshape(30, 30)
 """
 
@@ -97,13 +93,8 @@ def make_rotation_dataset(
     angle_list = []
 
     for img in images:
-        padded = np.pad(img, 3, mode="constant", constant_values=0.0)
-        for angle in angles:
-            rotated = scipy_rotate(padded, angle, reshape=False,
-                                   mode="constant", cval=0.0, order=1)
-            rotated = rotated[2:-2, 2:-2]
-            frames.append(rotated.flatten().astype(float))
-            angle_list.append(angle)
+        frames.extend(_rotate_frames(img, angles))
+        angle_list.extend(angles.tolist())
 
     X = np.stack(frames)
     angles_out = np.array(angle_list)
@@ -111,7 +102,7 @@ def make_rotation_dataset(
     # clean images in [0, 1] (removes rotation-interpolation over/undershoot)
     X = np.clip(X, 0.0, 1.0)
 
-    # Standardization parameters from the clean images.
+    # standardization parameters are estimated on the clean images
     pixel_mean = np.zeros(X.shape[1])
     pixel_std = np.ones(X.shape[1])
     if center:
@@ -124,7 +115,6 @@ def make_rotation_dataset(
     if add_noise > 0:
         X = X + rng.normal(0, add_noise, size=X.shape)
 
-    # Standardize
     if center:
         X = (X - pixel_mean) / pixel_std
 
@@ -139,35 +129,25 @@ def make_multi_rotation_dataset(
     random_state: int = 0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list, np.ndarray, np.ndarray]:
     """
-    Several rotating digits stacked into one dataset, each with its own angle
-    range. Different digits form separate connected components; a digit swept
-    over the full circle (0..360) is a loop, a partial sweep is an open arc.
+    Several rotating digits stacked into one dataset, one component each.
+
+    A digit swept over the full circle (0..360) is a loop, a partial sweep an arc.
 
     Parameters
     ----------
-    specs : list of dict
-        One entry per component. Recognised keys:
-            digit       : int, which MNIST digit
-            start, end  : float, angle range in degrees (default 0, 360)
-            samples     : int, frames for this component (default samples_per)
-            image_index : int, which exemplar image of that digit (default 0)
-        A spec is a loop iff start == 0 and end == 360.
-    samples_per : int
-        Default number of rotated frames per component (per-spec "samples"
-        overrides it).
+    specs : one dict per component, keys "digit" and optionally "start"/"end"
+        (degrees, default 0/360), "samples" and "image_index" (which exemplar
+        image of that digit, default 0).
+    samples_per : default frames per component, overridden by a spec's "samples".
     center, add_noise, random_state : see make_rotation_dataset. Noise is added
-        (in pixel space) before a single joint standardization over all frames.
+        in pixel space before one joint standardization over all frames.
 
     Returns
     -------
-    X          : (n_specs * samples_per, 900) standardized (+ noise) frames
-    angles     : (N,) per-frame angle in degrees (within its component's range)
-    digit_id   : (N,) the digit value (0..9) each frame belongs to; the discrete
-                 ground-truth factor / class label
-    meta       : list of dict, one per spec, enriched with "is_loop", "digit",
-                 "start", "end" and the sample index range "sl" (slice)
-    pixel_mean : (900,) joint per-pixel mean (0 if center=False)
-    pixel_std  : (900,) joint global scale, broadcast to every pixel
+    X : (N, 900) standardized frames, angles : (N,) degrees within the component's
+    range, digit_id : (N,) digit value (the discrete class label),
+    meta : per spec "is_loop", "digit", "start", "end" and the index range "sl",
+    pixel_mean : (900,), pixel_std : (900,) global scale broadcast to all pixels.
     """
     rng = np.random.default_rng(random_state)
     frames, angle_list, digit_list, meta = [], [], [], []

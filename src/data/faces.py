@@ -11,18 +11,16 @@ so a face is fully described by identity weights w (who), expression weights e
 is a ground-truth generative factor in physical units: degrees for the rotation,
 blendshape units in [0, 1] for the expressions.
 
-The meshes live in `data/ictfacekit/` and are not part of the repository; run
-`python -m data.faces` (from src/) once to download them from the ICT-FaceKit
-repository. `_load_meshes` caches the parsed .obj files in a single .npz.
+The meshes live in 'data/ictfacekit/' and are not in the repository; run
+'python -m data.faces' from src/ once to download them. Parsed .obj files are
+cached in a single .npz.
 
-Images are rendered with a small self-contained rasterizer: the quad mesh is
-sampled into a dense point cloud, points are shaded with a Lambertian term and
-splatted into the image back-to-front, so nearer surface points overwrite
-farther ones. No external renderer is required.
+Images come from a small self-contained rasterizer: the quad mesh is sampled
+into a dense point cloud, shaded with a Lambertian term and splatted back-to-
+front, so nearer surface points overwrite farther ones.
 
-As for the MNIST datasets, `make_multi_face_dataset` returns X standardized,
-with pixel_mean / pixel_std to invert it for display:
-    img = (v * pixel_std + pixel_mean).reshape(image_size, image_size)
+'make_multi_face_dataset' returns X standardized, invert it for display via
+img = (v * pixel_std + pixel_mean).reshape(image_size, image_size).
 """
 
 import os
@@ -378,41 +376,28 @@ def make_multi_face_dataset(
     progress=None,
 ) -> tuple:
     """
-    Several faces, each sweeping one generative factor, stacked into one dataset.
+    Several faces, each sweeping one factor, stacked into one dataset.
 
-    Every spec is a different face of FACES and therefore a separate connected
-    component; because a factor is swept over an interval (and never closes),
-    each component is an open arc.
+    Every spec is a different face of FACES and thus a separate component; since
+    a factor is swept over an interval and never closes, each one is an open arc.
 
     Parameters
     ----------
-    specs : list of dict
-        One entry per component. Recognised keys:
-            face     : int, index into FACES (which person)
-            factor   : str, one of FACTOR_NAMES ("yaw", "smile", "jaw_open", ...)
-            samples  : int, frames for this component (default samples_per)
-            start,end: float, factor range; defaults to the full FACTOR_RANGES
-                       span of the factor, which is what the experiments use
-            base     : dict, values of the factors held fixed for this component
-    samples_per : int
-        Default number of frames per component.
-    center, add_noise, random_state
-        As for the MNIST datasets: noise is added in pixel space before a single
-        joint standardization over all frames.
-    progress : callable(done, total) or None
-        Called while rendering, at most once per percent. Rendering a component
-        takes seconds to minutes (the cost grows with the image size), so the
-        callers use this to keep their status line alive.
+    specs : one dict per component, keys "face" (index into FACES), "factor" (a
+        FACTOR_NAMES entry), and optionally "samples", "start"/"end" (default:
+        the full FACTOR_RANGES span) and "base" (factors held fixed).
+    samples_per : default frames per component.
+    center, add_noise, random_state : as for the MNIST datasets; noise is added
+        in pixel space before one joint standardization over all frames.
+    progress : callable(done, total), called at most once per percent while
+        rendering, which takes seconds to minutes depending on the image size.
 
     Returns
     -------
-    X          : (N, image_size**2) standardized (+ noise) frames
-    values     : (N,) factor value of each frame, in its component's unit
-    component_id : (N,) index of the spec each frame belongs to (class label)
-    meta       : list of dict, one per spec, enriched with "sl" (index range),
-                 "face", "name", "factor", "start", "end", "unit"
-    pixel_mean : (image_size**2,) joint per-pixel mean (0 if center=False)
-    pixel_std  : (image_size**2,) joint global scale, broadcast to every pixel
+    X : (N, image_size**2) standardized frames, values : (N,) factor value in its
+    component's unit, component_id : (N,) spec index (the class label),
+    meta : per spec "sl", "face", "name", "factor", "start", "end", "unit",
+    pixel_mean : (image_size**2,), pixel_std : (image_size**2,) global scale.
     """
     rng = np.random.default_rng(random_state)
     if renderer is None or renderer.image_size != int(image_size):

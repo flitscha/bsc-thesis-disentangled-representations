@@ -1,22 +1,16 @@
 """
-Reconstruction-error decomposition.
+Reconstruction-error decomposition (M3).
 
-For each observation, three reconstructions of the INPUT are compared against a
-TARGET image, as per-observation pixel RMSE (root mean square error):
+Three reconstructions of the INPUT are compared against a TARGET, as
+per-observation RMSE, in order of decreasing model freedom:
 
-- full      : the learned curve's point nearest to the input, reconstructed to
-              ambient space. Depends on the whole pipeline (ordering + spline + model).
+    pca_floor : PCA + rotation round-trip, i.e. the reduction loss alone.
+    mfa_floor : MFA posterior-mean reconstruction.
+    full      : nearest point of the learned curve, lifted back to ambient space;
+                depends on ordering, spline and model together.
 
-- mfa_floor : the MFA posterior-mean reconstruction of the input.
-
-- pca_floor : the PCA + rotation round-trip. This measures how much information
-              is lost through PCA.
-
-
-Two modes, chosen by the caller via the input/target pair:
-- capacity  : input = target = clean images.
-- denoising : input = noisy images, target = clean images. Measures how well
-              the method recovers the clean signal from a noisy input.
+The caller picks the mode via the input/target pair: capacity uses clean images
+for both, denoising a noisy input against the clean target.
 """
 
 import numpy as np
@@ -33,22 +27,11 @@ def reconstruction_errors(pipe, X_input, X_target=None):
     """
     Reconstruction-error decomposition of X_input against X_target.
 
-    Parameters
-    ----------
-    pipe : ManifoldPipeline
-        Fitted and detected (curves with splines available).
-    X_input : (N, D0)
-        Images fed through the representation (encode -> reconstruct).
-    X_target : (N, D0) or None
-        Ground-truth images to compare against, row-aligned with X_input. If
-        None, the input is used as its own target (standard self-reconstruction,
-        capacity mode).
+    'pipe' must be fitted and detected. 'X_target' is row-aligned with X_input;
+    None makes the input its own target (capacity mode).
 
-    Returns
-    -------
-    dict of (N,) arrays: "full", "mfa_floor", "pca_floor", "input_error"
-    (input_error = input-vs-target RMSE: the noise level in denoising mode, 0 in
-    capacity mode).
+    Returns (N,) arrays "full", "mfa_floor", "pca_floor" and "input_error", the
+    latter being the noise level in denoising mode and 0 in capacity mode.
     """
     X_input = np.asarray(X_input, dtype=float)
     X_target = X_input if X_target is None else np.asarray(X_target, dtype=float)
