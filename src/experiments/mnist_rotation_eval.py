@@ -115,8 +115,7 @@ def run_evaluation(
                 pipe.detect_kwargs.pop("min_persistence_h1", None)
                 pipe.set_params(detection=method)
                 pipe.detect()
-                pipe.apply_persistence_thresholds(h0_persistence_factor,
-                                                  h1_persistence_factor)
+                pipe.apply_persistence_thresholds(h0_persistence_factor, h1_persistence_factor)
                 summary, _ = evaluate_run(
                     pipe, X_input, angles, kind="loop",
                     image_shape=IMAGE_SHAPE, pixel_mean=pmean, pixel_std=pstd,

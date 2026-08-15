@@ -223,8 +223,7 @@ class ManifoldPipeline:
         if diagram is None:
             return self
 
-        thresholds = persistence_thresholds(
-            diagram, h0_factor=h0_factor, h1_factor=h1_factor)
+        thresholds = persistence_thresholds(diagram, h0_factor=h0_factor, h1_factor=h1_factor)
         if not thresholds:
             return self
 
