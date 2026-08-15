@@ -147,7 +147,7 @@ def evaluate_run(
 
         if image_shape is not None:
             figs.update(_strip_figures(
-                pipe, X_input, X_target, factor, t, periodic, curve_index,
+                pipe, X_input, X_target, factor, t, periodic, curve_index, al,
                 image_shape, pixel_mean, pixel_std, n_strip, n_recovery_strip))
 
         for name, fig in figs.items():
@@ -157,19 +157,26 @@ def evaluate_run(
 
 
 def _strip_figures(
-    pipe, X_input, X_target, factor, t, periodic, ci,
+    pipe, X_input, X_target, factor, t, periodic, ci, alignment,
     image_shape, pixel_mean, pixel_std, n_strip, n_recovery_strip
 ):
     """
-    Two image strips. Both pick the observations nearest to a grid of
-    ground-truth factor values and reconstruct each at its own encoded
-    coordinate t
+    Two image strips over a grid of ground-truth factor values. They differ in
+    what the bottom row is, and the difference matters:
 
-    fig_reconstruction : reconstruction / denoising view
-        capacity  : true  | recon
-        denoising : noisy | recon
-    fig_recovery_strip : the visual factor residual
-        capacity / denoising : true | recon
+    fig_reconstruction : reconstruction / denoising view. The bottom row is the
+        round trip of each observation -- encode it, then decode it at its own
+        coordinate t. This is the only strip in which an observation enters the
+        model.
+            capacity  : true  | recon
+            denoising : noisy | recon
+    fig_recovery_strip : factor recovery, the same figure the multi-structure
+        experiments build. The bottom row is the decoder evaluated at the
+        coordinate the alignment maps each *ground-truth* grid value to, so the
+        ground truth never enters the model: only the two alignment freedoms
+        (direction and offset for a loop, the affine map for an arc) connect the
+        two rows. A wrong angle would show up as a wrongly rotated digit.
+            capacity / denoising : true / noisy | model
     """
     spline = pipe.curves_[ci]["spline"]
 
@@ -183,15 +190,35 @@ def _strip_figures(
         def to_image(v):
             return np.asarray(v).reshape(image_shape)
 
-    def pick(n):
-        """Observations nearest to an n-point ground-truth factor grid."""
+    def grid_of(n):
+        """An n-point grid over the ground-truth factor range."""
         if periodic:
-            grid = np.linspace(0.0, 360.0, n, endpoint=False)
-        else:
-            grid = np.linspace(factor.min(), factor.max(), n)
-        idx = [_nearest_index(factor, g, periodic) for g in grid]
+            return np.linspace(0.0, 360.0, n, endpoint=False)
+        return np.linspace(factor.min(), factor.max(), n)
+
+    def nearest_observations(grid):
+        """Indices of the observations whose true factor is closest to the grid."""
+        return [_nearest_index(factor, g, periodic) for g in grid]
+
+    def pick(n):
+        """Observations nearest to the grid, each reconstructed at its own t."""
+        grid = grid_of(n)
+        idx = nearest_observations(grid)
         recon = pipe.reconstruct(spline(np.asarray(t)[idx]))
         return idx, recon, [f"{g:.0f}" for g in grid]
+
+    def decode_at(grid):
+        """
+        Decoder output at the curve coordinate that aligns to each grid value.
+
+        This is the generative direction: a ground-truth factor value goes in, an
+        image comes out, without the corresponding observation ever being seen.
+        """
+        if periodic:
+            t_grid = np.mod(alignment["t_of_theta"](grid), 1.0)
+        else:
+            t_grid = np.clip(alignment["t_of_factor"](grid), 0.0, 1.0)
+        return pipe.reconstruct(np.asarray(spline(t_grid)))
 
     def make(rows, labels, title):
         return F.plot_image_strip(rows, image_shape, col_labels=labels,
@@ -208,12 +235,15 @@ def _strip_figures(
         rows = [("noisy", np.stack([X_input[i] for i in idx])), ("recon", recon)]
         recon_strip = make(rows, labels, "Denoising")
 
-    # visual factor-residual strip: top row is the actual input (noisy under
-    # noise), so the denoising by the reconstruction stays visible
-    idx, recon, labels = pick(n_recovery_strip)
+    # factor-recovery strip: top row is the actual input at each grid value, the
+    # bottom row the decoder driven by that same grid value (never by the image)
+    grid = grid_of(n_recovery_strip)
+    idx = nearest_observations(grid)
     top_label = "noisy" if X_target is not None else "true"
-    rows = [(top_label, np.stack([X_input[i] for i in idx])), ("recon", recon)]
-    recovery_strip = make(rows, labels, "Reconstruction at the estimated angle")
+    rows = [(top_label, np.stack([X_input[i] for i in idx])),
+            ("model", decode_at(grid))]
+    recovery_strip = make(rows, [f"{g:.0f}" for g in grid],
+                          "Angle recovery" if periodic else "Factor recovery")
 
     return {"fig_reconstruction.pdf": recon_strip,
             "fig_recovery_strip.pdf": recovery_strip}

@@ -1,7 +1,7 @@
 {
   "experiment": "mnist_rotation",
   "tag": "digit6_seed0",
-  "timestamp": "2026-08-13T15:01:18",
+  "timestamp": "2026-08-15T16:01:24",
   "config": {
     "digit": 6,
     "n_angles": 360,
@@ -24,8 +24,8 @@
       "angle_mean_deg": 1.5275451194394347,
       "angle_median_deg": 1.4490623055053788,
       "angle_max_deg": 4.199375194494621,
-      "recon_full": 0.2298665803717547,
-      "recon_mfa_floor": 0.20802811662940285,
+      "recon_full": 0.22986658037175473,
+      "recon_mfa_floor": 0.2080281166294028,
       "recon_pca_floor": 0.19448750609537815
     },
     "capacity_traversal": {
@@ -37,8 +37,8 @@
       "angle_mean_deg": 2.270444577119306,
       "angle_median_deg": 2.15625,
       "angle_max_deg": 4.955309088360707,
-      "recon_full": 0.21947800137212303,
-      "recon_mfa_floor": 0.20802811662940285,
+      "recon_full": 0.21947800137212306,
+      "recon_mfa_floor": 0.2080281166294028,
       "recon_pca_floor": 0.19448750609537815
     },
     "denoising_tda": {
@@ -63,7 +63,7 @@
       "angle_mean_deg": 5.870834147518945,
       "angle_median_deg": 4.8984375,
       "angle_max_deg": 12.990271013352526,
-      "recon_full": 0.369513488934279,
+      "recon_full": 0.36951348893427893,
       "recon_mfa_floor": 0.3844756297265061,
       "recon_pca_floor": 0.43178889484116645
     }
