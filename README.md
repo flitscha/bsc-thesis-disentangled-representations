@@ -56,6 +56,8 @@ spline runs closest to it.
 | Faces | rendered ICT-FaceKit faces, one generative factor each |
 | Motion Capture | CMU poses (not images) |
 
+<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/80dcb648-de46-419a-bc9e-04532b1d6fce" />
+
 
 ## Experiments
 
