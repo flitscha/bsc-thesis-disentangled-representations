@@ -547,7 +547,7 @@ def motion_frames(name: str, mocap_dir: str = None):
 # --------------------------------------------------------------------------
 def make_multi_motion_dataset(
     specs: list,
-    samples_per: int = 150,
+    samples_per: int = 100,
     center: bool = True,
     add_noise: float = 0.0,
     random_state: int = 0,

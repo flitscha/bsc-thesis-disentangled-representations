@@ -200,7 +200,7 @@ def _apply_h0_threshold(pipe, factor):
 
 
 def run_evaluation(
-    *, specs=None, samples_per=400, noise=0.0, n_components=100, pca_dim=50,
+    *, specs=None, samples_per=100, noise=0.0, n_components=100, pca_dim=50,
     lambda_aniso=30.0, n_neighbors=4, interp_tangent_weight=3.0,
     h0_persistence_factor=0.0, seed=0, results_root=None, save=True, progress=None,
 ):

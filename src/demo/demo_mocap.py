@@ -79,7 +79,7 @@ class MocapDemoTab(ManifoldDemoTab):
                 dpg.add_text(f" {motion['name']:<15}")
                 dpg.add_text(f"{motion['kind']:<5}", color=_GREY)
                 self.row_samples[row] = dpg.add_input_int(
-                    default_value=400, width=62, step=0)
+                    default_value=100, width=62, step=0)
                 with dpg.tooltip(dpg.last_item()):
                     dpg.add_text(motion["description"], wrap=260)
 
@@ -115,7 +115,7 @@ class MocapDemoTab(ManifoldDemoTab):
         """The configuration of the thesis experiment: two loops and two arcs."""
         for row, motion in enumerate(MOTIONS):
             dpg.set_value(self.row_include[row], motion["name"] in PRESET_MOTIONS)
-            dpg.set_value(self.row_samples[row], 400)
+            dpg.set_value(self.row_samples[row], 100)
         dpg.set_value(self.noise_in, 0.0)
         dpg.set_value(self.seed_in, 0)
         dpg.set_value(self.n_comp_in, 100)
