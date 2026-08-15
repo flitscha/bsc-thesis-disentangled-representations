@@ -1,7 +1,7 @@
 {
   "experiment": "mocap",
   "tag": "walk_run_wave_sit_down_seed0",
-  "timestamp": "2026-08-15T10:44:46",
+  "timestamp": "2026-08-15T15:53:59",
   "config": {
     "specs": [
       {
@@ -29,6 +29,7 @@
     "n_neighbors": 4,
     "interp_tangent_weight": 3.0,
     "h0_persistence_factor": 0.0,
+    "h1_persistence_factor": 0.0,
     "seed": 0,
     "n_frames": [
       613,
