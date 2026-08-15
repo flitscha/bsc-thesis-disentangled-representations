@@ -1,7 +1,7 @@
 # Learning Data Densities and Data Coordinate Systems for Disentangled Representations
 
-Bachelor thesis by **Felix Campidell**, supervised by **Till Kahlke** and **Jörg Lücke**
-— Universität Innsbruck, Department of Computer Science.
+Bachelor thesis by **Felix Campidell**, supervised by **Till Kahlke** and **Jörg Lücke**.
+Universität Innsbruck, Department of Computer Science.
 
 A mixture of factor analyzers model is fitted to the data, so every component becomes
 a local chart with its own tangent frame. The charts are linked by a tangent-aware
@@ -31,8 +31,17 @@ from core.pipeline import ManifoldPipeline
 
 pipe = ManifoldPipeline(n_components=100, pca_dim=50, detection="tda")
 result = pipe.fit_detect(X)      # curves + splines
-t, curve_id = pipe.transform(X)  # the learned 1D coordinate per observation
+t, curve_id = pipe.transform(X)  # the learned coordinate per observation
 ```
+
+Detection yields at least one curve per connected component, plus a loop
+wherever one was found. `result["curves"]` lists them, each with its `type`
+(`"loop"` or `"path"`), the H0 `component` it belongs to, the `order` of chart
+means along it and the `spline`.
+
+`transform` is the encoder. It assigns every observation to the curve whose
+spline runs closest to it.
+
 
 ## Demos
 
@@ -54,6 +63,14 @@ The offline evaluations behind the thesis results run from the demo ("Run
 evaluation") or standalone, and write to `results/<experiment>/<tag>/`
 (`summary.json`, `arrays.npz`, figures). The defaults reproduce the runs already
 in `results/`:
+
+```bash
+cd src
+python -m experiments.mnist_rotation_eval   # single rotating digit, TDA vs. baseline
+python -m experiments.multi_factor_eval     # several digits at once
+python -m experiments.face_factor_eval      # rendered faces
+python -m experiments.mocap_eval            # motion capture
+```
 
 
 ## Installation
