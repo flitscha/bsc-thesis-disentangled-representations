@@ -23,7 +23,9 @@ from scipy.optimize import linear_sum_assignment
 
 from data.faces import make_multi_face_dataset, FACES, FACTOR_UNITS
 from core.pipeline import ManifoldPipeline
-from experiments.eval import align_arc, topology_report, discrete_ari, component_labels
+from experiments.eval import (
+    align_arc, topology_report, discrete_ari, component_labels, persistence_tag,
+)
 from experiments.eval import figures as F
 
 DEFAULT_SPECS = [
@@ -154,6 +156,7 @@ def _reconstruct_along(pipe, curve, n):
 def run_evaluation(
     *, specs=None, samples_per=120, image_size=128, noise=0.0, n_components=90,
     pca_dim=40, lambda_aniso=30.0, n_neighbors=4, interp_tangent_weight=3.0,
+    h0_persistence_factor=0.0, h1_persistence_factor=0.0,
     seed=0, results_root=None, save=True, progress=None,
 ):
     """
@@ -161,6 +164,10 @@ def run_evaluation(
 
     The defaults are the configuration of the run reported in the thesis
     (`results/faces/Ayaw_Bsmile_Cjaw_open_seed0/`).
+
+    `h0_persistence_factor` / `h1_persistence_factor` > 0 replace the automatic
+    rules of §5.6 by an explicit threshold at that multiple of the median H0
+    merge scale; 0 keeps the automatic rule.
 
     Returns (summary_dict, run_dir).
     """
@@ -171,7 +178,9 @@ def run_evaluation(
     specs = [{**s, "samples": int(s.get("samples", samples_per))}
              for s in (specs if specs is not None else DEFAULT_SPECS)]
     image_shape = (int(image_size), int(image_size))
-    tag = f"{_spec_tag(specs)}_seed{seed}"
+    tag = (f"{_spec_tag(specs)}"
+           f"{persistence_tag(h0_persistence_factor, h1_persistence_factor)}"
+           f"_seed{seed}")
     expected_n = len(specs)
     expected_types = ["path"] * expected_n
 
@@ -194,6 +203,7 @@ def run_evaluation(
 
     say("detecting structure (TDA) ...")
     pipe.detect()
+    pipe.apply_persistence_thresholds(h0_persistence_factor, h1_persistence_factor)
     t, cid = pipe.transform(X)
     comp_id = component_labels(pipe, X) # H0 component per observation
 
@@ -214,7 +224,9 @@ def run_evaluation(
             "specs": specs, "samples_per": samples_per, "image_size": image_size,
             "noise": noise, "n_components": n_components, "pca_dim": pca_dim,
             "lambda_aniso": lambda_aniso, "n_neighbors": n_neighbors,
-            "interp_tangent_weight": interp_tangent_weight, "seed": seed,
+            "interp_tangent_weight": interp_tangent_weight,
+            "h0_persistence_factor": h0_persistence_factor,
+            "h1_persistence_factor": h1_persistence_factor, "seed": seed,
         },
         "metrics": {
             "topology": m1,

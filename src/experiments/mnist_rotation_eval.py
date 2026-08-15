@@ -17,7 +17,7 @@ import datetime
 
 from data.mnist_rotation import make_rotation_dataset
 from core.pipeline import ManifoldPipeline
-from experiments.eval import evaluate_run
+from experiments.eval import evaluate_run, persistence_tag
 
 IMAGE_SHAPE = (30, 30) # rotated frames are 30x30 = 900 px (see mnist_rotation)
 
@@ -54,7 +54,8 @@ def _headline(summary):
 def run_evaluation(
     *, digit=6, n_angles=360, noise=0.25, n_components=24,
     pca_dim=20, latent_dim=1, lambda_aniso=30.0, n_neighbors=4,
-    interp_tangent_weight=3.0, seed=0,
+    interp_tangent_weight=3.0, h0_persistence_factor=0.0,
+    h1_persistence_factor=0.0, seed=0,
     methods=("tda", "traversal"), results_root=None,
     progress=None
 ):
@@ -63,6 +64,11 @@ def run_evaluation(
 
     The defaults are the configuration of the run reported in the thesis
     (`results/mnist_rotation/digit6_seed0/`).
+
+    `h0_persistence_factor` / `h1_persistence_factor` > 0 replace the automatic
+    rules of §5.6 by an explicit threshold at that multiple of the median H0
+    merge scale; 0 keeps the automatic rule. They only affect the TDA runs, the
+    traversal baseline has no barcode.
 
     Returns
     -------
@@ -73,7 +79,9 @@ def run_evaluation(
         if progress is not None:
             progress(msg)
 
-    tag = f"digit{digit}_seed{seed}"
+    tag = (f"digit{digit}"
+           f"{persistence_tag(h0_persistence_factor, h1_persistence_factor)}"
+           f"_seed{seed}")
     kw = dict(n_components=n_components, pca_dim=pca_dim, latent_dim=latent_dim,
               lambda_aniso=lambda_aniso, n_neighbors=n_neighbors,
               interp_tangent_weight=interp_tangent_weight, seed=seed)
@@ -101,8 +109,14 @@ def run_evaluation(
             key = f"{mode}_{method}"
             say(f"[{done}/{total}] {mode} / {method}: detecting + evaluating ...")
             try:
+                # a threshold resolved by an earlier TDA run says nothing about
+                # the baseline, so it must not linger in the saved parameters
+                pipe.detect_kwargs.pop("min_persistence_h0", None)
+                pipe.detect_kwargs.pop("min_persistence_h1", None)
                 pipe.set_params(detection=method)
                 pipe.detect()
+                pipe.apply_persistence_thresholds(h0_persistence_factor,
+                                                  h1_persistence_factor)
                 summary, _ = evaluate_run(
                     pipe, X_input, angles, kind="loop",
                     image_shape=IMAGE_SHAPE, pixel_mean=pmean, pixel_std=pstd,
@@ -111,6 +125,8 @@ def run_evaluation(
                     results_root=results_root,
                     extra={"digit": digit, "seed": seed, "mode": mode,
                            "method": method,
+                           "h0_persistence_factor": h0_persistence_factor,
+                           "h1_persistence_factor": h1_persistence_factor,
                            "noise": float(noise) if mode == "denoising" else 0.0},
                 )
                 comparison[key] = _headline(summary)

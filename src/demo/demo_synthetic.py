@@ -153,7 +153,7 @@ class SyntheticDemoTab:
 
 
     def _on_train(self):
-        dpg.set_value(self.status_text, "training is running...")
+        dpg.set_value(self.status_text, "Training...")
         self.data, self.projection = make_dataset(
             dpg.get_value(self.data_type),
             dpg.get_value(self.num_points),

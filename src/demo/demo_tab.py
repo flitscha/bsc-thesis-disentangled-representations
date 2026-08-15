@@ -24,7 +24,6 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from core.pipeline import ManifoldPipeline
 from core.mfa import atlas_summary
-from core.tda import persistence_thresholds
 from experiments.eval import component_labels
 
 DPI = 100
@@ -143,20 +142,16 @@ class ManifoldDemoTab:
     def _detect(self, exp):
         """Detection step; returns the list of curves.
 
-        Runs once with the automatic rules, then again if the panel asks for an
-        explicit H0/H1 threshold: those are multiples of the barcode's own merge
-        scale, which is only known after the first run.
+        Detects with the automatic rules first: the panel's H0/H1 thresholds are
+        multiples of the barcode's own merge scale, which is only known once a
+        detection has run (a no-op while both are 0).
         """
-        result = exp.detect()
-        thresholds = persistence_thresholds(
-            result["diagram"],
+        exp.detect()
+        exp.apply_persistence_thresholds(
             h0_factor=dpg.get_value(self.h0_factor_in),
             h1_factor=dpg.get_value(self.h1_factor_in),
         )
-        if thresholds:
-            exp.set_params(**thresholds)
-            result = exp.detect()
-        return result["curves"]
+        return exp.curves_
 
     def _training_summary(self):
         n_components, n_loops, n_paths = self._topology_counts()
@@ -210,8 +205,7 @@ class ManifoldDemoTab:
             self._build_detection_section()
 
             dpg.add_spacer(height=6)
-            dpg.add_button(label="Train + Detect (TDA)",
-                           callback=self._train_threaded, width=-1)
+            dpg.add_button(label="Train", callback=self._train_threaded, width=-1)
             self.train_lbl = dpg.add_text("-", color=_GREY, wrap=self.wrap)
 
             dpg.add_spacer(height=6)

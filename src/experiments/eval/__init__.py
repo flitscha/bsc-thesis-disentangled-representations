@@ -7,10 +7,10 @@ from experiments.eval.metrics import (
     topology_report, angle_error, discrete_ari, component_labels,
 )
 from experiments.eval.reconstruct import reconstruction_errors
-from experiments.eval.runner import evaluate_run
+from experiments.eval.runner import evaluate_run, persistence_tag
 
 __all__ = [
-    "evaluate_run",
+    "evaluate_run", "persistence_tag",
     "align_loop", "align_arc",
     "topology_report", "angle_error", "discrete_ari", "component_labels",
     "reconstruction_errors",

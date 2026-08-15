@@ -176,6 +176,7 @@ class MocapDemoTab(ManifoldDemoTab):
             n_neighbors=dpg.get_value(self.k_distance_in),
             interp_tangent_weight=dpg.get_value(self.interp_w_in),
             h0_persistence_factor=dpg.get_value(self.h0_factor_in),
+            h1_persistence_factor=dpg.get_value(self.h1_factor_in),
             seed=seed, progress=progress,
         )
         return out_dir

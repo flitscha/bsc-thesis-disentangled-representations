@@ -26,6 +26,7 @@ from data.mnist_rotation import make_multi_rotation_dataset
 from core.pipeline import ManifoldPipeline
 from experiments.eval import (
     align_loop, align_arc, topology_report, discrete_ari, component_labels,
+    persistence_tag,
 )
 from experiments.eval import figures as F
 
@@ -217,6 +218,7 @@ def _ground_truth_strip(pipe, curve, match, cid, angles, t, digit_id, X):
 def run_evaluation(
     *, specs=None, samples_per=360, noise=0.15, n_components=200,
     pca_dim=60, lambda_aniso=30.0, n_neighbors=4, interp_tangent_weight=3.0,
+    h0_persistence_factor=0.0, h1_persistence_factor=0.0,
     seed=0, results_root=None, save=True, progress=None,
 ):
     """
@@ -224,6 +226,10 @@ def run_evaluation(
 
     The defaults are the configuration of the run reported in the thesis
     (`results/mnist_multi/1loop_3loop_6arc_9loop_seed0/`).
+
+    `h0_persistence_factor` / `h1_persistence_factor` > 0 replace the automatic
+    rules of §5.6 by an explicit threshold at that multiple of the median H0
+    merge scale; 0 keeps the automatic rule.
 
     Returns (summary_dict, run_dir).
     """
@@ -242,7 +248,9 @@ def run_evaluation(
     # per-spec "samples" may have overridden
     specs = [{**s, "samples": int(s.get("samples", samples_per))} for s in specs]
 
-    tag = f"{_spec_tag(specs)}_seed{seed}"
+    tag = (f"{_spec_tag(specs)}"
+           f"{persistence_tag(h0_persistence_factor, h1_persistence_factor)}"
+           f"_seed{seed}")
     expected_n = len(specs)
     expected_types = ["loop" if _is_loop_spec(s) else "path" for s in specs]
 
@@ -261,6 +269,7 @@ def run_evaluation(
 
     say("detecting structure (TDA) ...")
     pipe.detect()
+    pipe.apply_persistence_thresholds(h0_persistence_factor, h1_persistence_factor)
     t, cid = pipe.transform(X)
     comp_id = component_labels(pipe, X)  # H0 component per observation
 
@@ -285,7 +294,9 @@ def run_evaluation(
             "specs": specs, "samples_per": samples_per, "noise": noise,
             "n_components": n_components, "pca_dim": pca_dim,
             "lambda_aniso": lambda_aniso, "n_neighbors": n_neighbors,
-            "interp_tangent_weight": interp_tangent_weight, "seed": seed,
+            "interp_tangent_weight": interp_tangent_weight,
+            "h0_persistence_factor": h0_persistence_factor,
+            "h1_persistence_factor": h1_persistence_factor, "seed": seed,
         },
         "metrics": {
             "topology": m1,

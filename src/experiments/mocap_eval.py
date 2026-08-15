@@ -26,8 +26,10 @@ from scipy.optimize import linear_sum_assignment
 
 from data.mocap import make_multi_motion_dataset, FACTOR_UNIT, motion_spec
 from core.pipeline import ManifoldPipeline
-from core.tda import persistence_thresholds
-from experiments.eval import align_loop, align_arc, topology_report, discrete_ari, component_labels
+from experiments.eval import (
+    align_loop, align_arc, topology_report, discrete_ari, component_labels,
+    persistence_tag,
+)
 from experiments.eval import figures as F
 from visualization.mocap import draw_vector
 
@@ -179,30 +181,11 @@ def _reconstruct_along(pipe, curve, n):
     return pipe.reconstruct(np.asarray(curve["spline"](t_grid)))
 
 
-def _apply_h0_threshold(pipe, factor):
-    """
-    Re-detect with an explicit H0 threshold, set to `factor` times the median
-    merge scale of the H0 barcode.
-
-    The automatic rule (§5.6) splits at the largest gap of that barcode, which
-    counts only the components separated by the single widest gap. That is
-    enough as long as the components are about equally far apart; with one
-    motion much further away than the others (waving is a whole-body pose no
-    gait comes near) the rule under-counts, and the threshold is what is left.
-    Being a multiple of the median merge scale keeps it free of the data scale.
-    """
-    thresholds = persistence_thresholds(pipe.structure_["diagram"], h0_factor=factor)
-    if not thresholds:
-        return
-    pipe.set_params(**thresholds)
-    pipe.detect_structure()
-    pipe.interpolate()
-
-
 def run_evaluation(
     *, specs=None, samples_per=100, noise=0.0, n_components=100, pca_dim=50,
     lambda_aniso=30.0, n_neighbors=4, interp_tangent_weight=3.0,
-    h0_persistence_factor=0.0, seed=0, results_root=None, save=True, progress=None,
+    h0_persistence_factor=0.0, h1_persistence_factor=0.0,
+    seed=0, results_root=None, save=True, progress=None,
 ):
     """
     Run the motion capture evaluation for one configuration and save it.
@@ -210,9 +193,12 @@ def run_evaluation(
     The defaults are the configuration of the run reported in the thesis
     (`results/mocap/walk_run_wave_sit_down_seed0/`).
 
-    `h0_persistence_factor` > 0 replaces the automatic H0 rule by an explicit
-    threshold at that multiple of the median merge scale (see
-    `_apply_h0_threshold`); 0 keeps the automatic rule.
+    `h0_persistence_factor` / `h1_persistence_factor` > 0 replace the automatic
+    rules of §5.6 by an explicit threshold at that multiple of the median H0
+    merge scale (see `ManifoldPipeline.apply_persistence_thresholds`); 0 keeps
+    the automatic rule. H0 is what it takes here once one motion sits much
+    further away from the others than they do from each other: the largest-gap
+    rule then counts only the widest gap and under-counts the components.
 
     Returns (summary_dict, run_dir).
     """
@@ -222,10 +208,9 @@ def run_evaluation(
 
     specs = [{**s, "samples": int(s.get("samples", samples_per))}
              for s in (specs if specs is not None else DEFAULT_SPECS)]
-    # the H0 threshold is part of the run's identity: the same motions with and
-    # without it are two different results, not one overwriting the other
-    h0_tag = f"_h0f{h0_persistence_factor:g}" if h0_persistence_factor else ""
-    tag = f"{_spec_tag(specs)}{h0_tag}_seed{seed}"
+    tag = (f"{_spec_tag(specs)}"
+           f"{persistence_tag(h0_persistence_factor, h1_persistence_factor)}"
+           f"_seed{seed}")
     expected_n = len(specs)
     expected_types = [_expected_type(s) for s in specs]
 
@@ -245,8 +230,7 @@ def run_evaluation(
 
     say("detecting structure (TDA) ...")
     pipe.detect()
-    if h0_persistence_factor and h0_persistence_factor > 0:
-        _apply_h0_threshold(pipe, h0_persistence_factor)
+    pipe.apply_persistence_thresholds(h0_persistence_factor, h1_persistence_factor)
     t, cid = pipe.transform(X)
     comp_id = component_labels(pipe, X)  # H0 component per observation
 
@@ -268,7 +252,8 @@ def run_evaluation(
             "n_components": n_components, "pca_dim": pca_dim,
             "lambda_aniso": lambda_aniso, "n_neighbors": n_neighbors,
             "interp_tangent_weight": interp_tangent_weight,
-            "h0_persistence_factor": h0_persistence_factor, "seed": seed,
+            "h0_persistence_factor": h0_persistence_factor,
+            "h1_persistence_factor": h1_persistence_factor, "seed": seed,
             "n_frames": [m["n_frames"] for m in meta],
         },
         "metrics": {

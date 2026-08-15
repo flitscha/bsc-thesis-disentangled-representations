@@ -147,8 +147,7 @@ class Manifold1DTab:
                 )
 
             dpg.add_separator()
-            dpg.add_button(label="Train + Detect (traversal)",
-                           callback=self._on_train, width=-1)
+            dpg.add_button(label="Train", callback=self._on_train, width=-1)
 
             dpg.add_separator()
             dpg.add_text("Render mode")
@@ -196,7 +195,7 @@ class Manifold1DTab:
 
     # ------------------------- Training -----------------------------
     def _on_train(self):
-        dpg.set_value(self.status_text, "training is running...")
+        dpg.set_value(self.status_text, "Training...")
         threading.Thread(target=self._run_training_thread, daemon=True).start()
 
     def _run_training_thread(self):

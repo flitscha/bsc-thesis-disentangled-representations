@@ -26,7 +26,7 @@ import numpy as np
 from core.preprocessing import PCARotation
 from core.mfa import fit_mfa, extract_tangent_frame
 from core.graph import riemannian_distance_matrix, prune_low_weight_components
-from core.tda import detect_tda
+from core.tda import detect_tda, persistence_thresholds
 from core.ordering import detect_traversal
 from core.interpolation import interpolate_curves
 
@@ -206,6 +206,33 @@ class ManifoldPipeline:
         if graph is not None and "edges" in graph:
             graph["edges"] = [(int(kept[i]), int(kept[j])) for i, j in graph["edges"]]
 
+    def apply_persistence_thresholds(self, h0_factor=0.0, h1_factor=0.0):
+        """
+        Re-detect with explicit H0/H1 persistence thresholds and re-interpolate.
+
+        Both factors are multiples of the barcode's median H0 merge scale, which
+        keeps them free of the data scale but is only known once a detection has
+        run: call this after detect() / detect_structure(). A factor of 0 keeps
+        the automatic rule of §5.6 for that dimension, and if both are 0 this is
+        a no-op (no re-detection at all).
+        """
+        if self.structure_ is None:
+            raise RuntimeError("call detect_structure() before applying thresholds.")
+
+        diagram = self.structure_.get("diagram") # only the TDA branch has one
+        if diagram is None:
+            return self
+
+        thresholds = persistence_thresholds(
+            diagram, h0_factor=h0_factor, h1_factor=h1_factor)
+        if not thresholds:
+            return self
+
+        self.set_params(**thresholds)
+        self.detect_structure()
+        self.interpolate()
+        return self
+
     # ------------------------------------------------------------------
     # §5.7 interpolation
     # ------------------------------------------------------------------
@@ -239,14 +266,19 @@ class ManifoldPipeline:
         self.distance_matrix()
         self.detect_structure(**overrides)
         self.interpolate()
-        return self._result()
+        return self.result()
 
     def fit_detect(self, X, **overrides):
         """Convenience: fit(X) followed by detect()."""
         return self.fit(X).detect(**overrides)
 
-    def _result(self):
-        """Assemble a unified result dict from the detection artifacts."""
+    def result(self):
+        """
+        Assemble a unified result dict from the current detection artifacts.
+
+        What detect() returns, but callable again after the artifacts changed
+        (e.g. after apply_persistence_thresholds) without re-running detection.
+        """
         result = dict(self.structure_)
         result["curves"] = self.curves_
         result["distance_matrix"] = self.distances_

@@ -22,6 +22,23 @@ from experiments.eval.reconstruct import reconstruction_errors
 from experiments.eval import figures as F
 
 
+def persistence_tag(h0_factor=0.0, h1_factor=0.0):
+    """
+    Filename fragment for explicit H0/H1 persistence thresholds, e.g. '_h0f2.2'.
+
+    The thresholds are part of a run's identity: the same data with and without
+    them are two different results, not one overwriting the other. Empty string
+    if both are 0 (the automatic rules), which keeps the tags of the default
+    runs unchanged.
+    """
+    parts = ""
+    if h0_factor and h0_factor > 0:
+        parts += f"_h0f{h0_factor:g}"
+    if h1_factor and h1_factor > 0:
+        parts += f"_h1f{h1_factor:g}"
+    return parts
+
+
 def _project_root():
     here = os.path.dirname(os.path.abspath(__file__))
     return os.path.abspath(os.path.join(here, "..", "..", ".."))

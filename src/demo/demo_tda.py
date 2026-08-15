@@ -18,7 +18,6 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.pipeline import ManifoldPipeline
-from core.tda import persistence_thresholds
 from data.basic_manifolds import (
     curve_in_3d,
     half_circle,
@@ -184,7 +183,7 @@ class TopologyDemoTab:
                 )
 
             dpg.add_separator()
-            dpg.add_button(label="Train + Detect (TDA)", callback=self._on_train, width=-1)
+            dpg.add_button(label="Train", callback=self._on_train, width=-1)
 
             dpg.add_separator()
             dpg.add_text("Render mode")
@@ -237,7 +236,7 @@ class TopologyDemoTab:
 
     # ------------------------- Training -----------------------------
     def _on_train(self):
-        dpg.set_value(self.status_text, "training + analyzing topology...")
+        dpg.set_value(self.status_text, "Training...")
         threading.Thread(target=self._run_training_thread, daemon=True).start()
 
     def _run_training_thread(self):
@@ -270,18 +269,14 @@ class TopologyDemoTab:
         )
         self.pipe.fit(data)
 
-        self.topology = self.pipe.detect()
-
-        # explicit thresholds are multiples of the barcode's own merge scale,
-        # which is only known once the first detection has run
-        thresholds = persistence_thresholds(
-            self.topology["diagram"],
+        # the automatic rules run first: the panel's thresholds are multiples of
+        # the barcode's own merge scale, which only a finished detection knows
+        self.pipe.detect()
+        self.pipe.apply_persistence_thresholds(
             h0_factor=dpg.get_value(self.h0_factor),
             h1_factor=dpg.get_value(self.h1_factor),
         )
-        if thresholds:
-            self.pipe.set_params(**thresholds)
-            self.topology = self.pipe.detect()
+        self.topology = self.pipe.result()
 
         self.selected_curve = 0
         self._rebuild_curve_selector()
