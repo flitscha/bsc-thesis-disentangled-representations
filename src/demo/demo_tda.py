@@ -1,5 +1,5 @@
 """
-Tab 4: Topology Explorer (TDA)
+Tab 3: Topology Explorer (TDA)
 """
 
 import sys
@@ -18,6 +18,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.pipeline import ManifoldPipeline
+from core.tda import persistence_thresholds
 from data.basic_manifolds import (
     curve_in_3d,
     half_circle,
@@ -26,6 +27,7 @@ from data.basic_manifolds import (
     linked_circles_3d,
     embed_data_to_dimension,
 )
+from visualization.geometry import plot_transform
 
 
 DPI = 100
@@ -44,7 +46,7 @@ DATASETS = {
     "linked_circles_3d": {"fn": linked_circles_3d, "has_labels": True},
 }
 
-VIS_MODES = ("Data", "Graph", "Spline", "Persistent Homology")
+VIS_MODES = ("data", "graph", "spline", "persistence")
 COMPONENT_COLORS = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
 DIM_COLORS = {0: "tab:blue", 1: "tab:red"}
 
@@ -61,13 +63,15 @@ class TopologyDemoTab:
         self.texture_registry_tag = f"topology_texture_registry_{uid}"
         self.image_tag = f"topology_plot_image_{uid}"
         self.plot_panel_tag = f"topology_plot_panel_{uid}"
-        self.loop_controls_tag = f"{self.plot_panel_tag}_loop_controls_{uid}"
-        self.loop_selector_tag = f"{self.plot_panel_tag}_loop_selector_{uid}"
+        self.curve_controls_tag = f"{self.plot_panel_tag}_curve_controls_{uid}"
+        self.curve_selector_tag = f"{self.plot_panel_tag}_curve_selector_{uid}"
 
         self.raw_data = None       # (N, D) point cloud, ground-truth data
+        self.projection = None     # map back to the intrinsic coordinates, if embedded
         self.pipe = None           # fitted ManifoldPipeline
         self.topology = None       # result dict from pipe.detect()
-        self.selected_loop = 0     # index into self.topology["loops"]
+        self.selected_curve = 0    # index into self.topology["curves"]
+        self.t = 0.0               # position along the selected curve
 
         self.tex_w, self.tex_h = 700, 700
         self.azim = -60.0
@@ -93,7 +97,7 @@ class TopologyDemoTab:
                 "Fits an MFA, builds a tangent-aware distance from it, and "
                 "detects connected components and loops with persistent homology "
                 "(TDA). Unlike the traversal baseline, TDA needs only the "
-                "distance graph (Sec. 5.4), so there is a single k here.",
+                "distance graph, so there is a single k here.",
                 wrap=380, color=[150, 150, 150],
             )
             dpg.add_separator()
@@ -104,7 +108,7 @@ class TopologyDemoTab:
                 default_value="two_circles", label="Dataset", width=_width,
             )
             self.num_points = dpg.add_input_int(
-                label="Number of data points", default_value=300, min_value=3, width=_width,
+                label="# data points", default_value=300, min_value=3, width=_width,
             )
             self.embed_dim = dpg.add_input_int(
                 label="Embed into dimension (0 = off)", default_value=0, min_value=0, width=_width,
@@ -113,22 +117,22 @@ class TopologyDemoTab:
             dpg.add_separator()
             dpg.add_text("MFA model")
             self.num_components = dpg.add_input_int(
-                label="Number of components", default_value=25, min_value=3, width=_width,
+                label="# components", default_value=25, min_value=3, width=_width,
             )
             self.pca_dim = dpg.add_input_int(
                 label="PCA dim (0 = off)", default_value=0, min_value=0, width=_width,
             )
 
             dpg.add_separator()
-            dpg.add_text("Distance metric (Sec. 5.4)")
+            dpg.add_text("Distance metric")
             self.lambda_aniso = dpg.add_input_float(
-                label="lambda (off-manifold penalty)", default_value=30.0,
+                label="off-manifold penalty", default_value=30.0,
                 min_value=0.0, width=_width,
             )
             with dpg.tooltip(self.lambda_aniso):
                 dpg.add_text(
-                    "Penalty for moving off the tangent space. 0 = plain "
-                    "Euclidean, larger stretches normal directions more.",
+                    "Penalty lambda for moving off the tangent space. 0 = plain "
+                    "Euclidean, larger stretches the normal directions more.",
                     wrap=260,
                 )
             self.k_distance = dpg.add_input_int(
@@ -137,46 +141,69 @@ class TopologyDemoTab:
             with dpg.tooltip(self.k_distance):
                 dpg.add_text(
                     "Neighbors of the k-NN graph whose shortest paths give the "
-                    "geodesic distance (Sec. 5.4).",
+                    "geodesic distance.",
                     wrap=260,
                 )
 
             dpg.add_separator()
-            dpg.add_text("TDA thresholds (Sec. 5.6)")
-            self.min_pers_h0 = dpg.add_input_float(
-                label="min persistence H0 (0 = auto)", default_value=0.0,
-                min_value=0.0, width=_width,
+            dpg.add_text("TDA and interpolation")
+            self.h0_factor = dpg.add_input_float(
+                label="H0 threshold (0 = auto)", default_value=0.0,
+                min_value=0.0, step=0.1, format="%.2f", width=_width,
             )
-            with dpg.tooltip(self.min_pers_h0):
+            with dpg.tooltip(self.h0_factor):
                 dpg.add_text(
-                    "Minimum persistence for a connected component. 0 lets the "
-                    "detector pick a threshold automatically.",
+                    "How persistent a connected component has to be to count. "
+                    "0 uses the automatic largest-gap rule; a value > 0 replaces "
+                    "it by an explicit threshold at that multiple of the median "
+                    "H0 merge scale, which keeps it free of the data scale.",
                     wrap=260,
                 )
-            self.min_pers_h1 = dpg.add_input_float(
-                label="min persistence H1 (0 = auto)", default_value=0.0,
-                min_value=0.0, width=_width,
+            self.h1_factor = dpg.add_input_float(
+                label="H1 threshold (0 = auto)", default_value=0.0,
+                min_value=0.0, step=0.1, format="%.2f", width=_width,
             )
-            with dpg.tooltip(self.min_pers_h1):
+            with dpg.tooltip(self.h1_factor):
                 dpg.add_text(
-                    "Minimum persistence for a loop. 0 lets the detector pick a "
-                    "threshold automatically.",
+                    "How persistent a loop has to be to count. 0 uses the "
+                    "automatic prominence rule (death >= 1.8 x birth); a value "
+                    "> 0 replaces it by an explicit threshold at that multiple "
+                    "of the median H0 merge scale. Raise it to suppress "
+                    "spurious loops.",
+                    wrap=260,
+                )
+            self.interp_weight = dpg.add_input_float(
+                label="tangent weight", default_value=3.0, min_value=0.0,
+                step=0.5, width=_width,
+            )
+            with dpg.tooltip(self.interp_weight):
+                dpg.add_text(
+                    "Strength of the soft chart-tangent alignment of the "
+                    "spline. 0 = pure minimal-curvature interpolation.",
                     wrap=260,
                 )
 
             dpg.add_separator()
-            dpg.add_button(label="Train + Analyze Topology", callback=self._on_train, width=-1)
+            dpg.add_button(label="Train + Detect (TDA)", callback=self._on_train, width=-1)
 
             dpg.add_separator()
-            dpg.add_text("Visualization")
+            dpg.add_text("Render mode")
             self.visualisation_mode = dpg.add_radio_button(
-                VIS_MODES, default_value="Data", callback=self._on_viz_change,
+                VIS_MODES, default_value="data", callback=self._on_viz_change,
             )
 
             dpg.add_separator()
-            dpg.add_text("Loop selection (Spline mode)")
-            with dpg.group(tag=self.loop_controls_tag):
-                dpg.add_text("(train first)", tag=f"{self.loop_controls_tag}_placeholder")
+            dpg.add_text("Component to traverse")
+            with dpg.group(tag=self.curve_controls_tag):
+                dpg.add_text("(train first)", tag=f"{self.curve_controls_tag}_placeholder")
+
+            dpg.add_separator()
+            dpg.add_text("Spline parameter t")
+            self.t_display = dpg.add_text("t = 0.000")
+            self.t_slider = dpg.add_slider_float(
+                default_value=0.0, min_value=0.0, max_value=1.0,
+                width=-1, callback=self._on_slider_change,
+            )
 
             dpg.add_separator()
             self.status_text = dpg.add_text("No training has been conducted yet.")
@@ -224,13 +251,14 @@ class TopologyDemoTab:
             data = spec["fn"](n=n)
 
         embed_dim = dpg.get_value(self.embed_dim)
+        self.projection = None
         if embed_dim and embed_dim > data.shape[1]:
-            data, _ = embed_data_to_dimension(data, embed_dim)
+            # keep the embedding map: it takes the plots back to the intrinsic
+            # coordinates instead of showing three arbitrary ambient axes
+            data, self.projection = embed_data_to_dimension(data, embed_dim)
 
         self.raw_data = data
 
-        h0 = dpg.get_value(self.min_pers_h0)
-        h1 = dpg.get_value(self.min_pers_h1)
         self.pipe = ManifoldPipeline(
             n_components=dpg.get_value(self.num_components),
             latent_dim=1, cov_type="mfa", shared=False,
@@ -238,49 +266,71 @@ class TopologyDemoTab:
             lambda_aniso=dpg.get_value(self.lambda_aniso),
             n_neighbors=dpg.get_value(self.k_distance),
             detection="tda",
-            min_persistence_h0=h0 if h0 > 0 else None,
-            min_persistence_h1=h1 if h1 > 0 else None,
+            interp_tangent_weight=dpg.get_value(self.interp_weight),
         )
         self.pipe.fit(data)
 
         self.topology = self.pipe.detect()
-        self.selected_loop = 0
-        self._rebuild_loop_selector()
 
-        n_components = len(np.unique(self.topology["components"]))
+        # explicit thresholds are multiples of the barcode's own merge scale,
+        # which is only known once the first detection has run
+        thresholds = persistence_thresholds(
+            self.topology["diagram"],
+            h0_factor=dpg.get_value(self.h0_factor),
+            h1_factor=dpg.get_value(self.h1_factor),
+        )
+        if thresholds:
+            self.pipe.set_params(**thresholds)
+            self.topology = self.pipe.detect()
+
+        self.selected_curve = 0
+        self._rebuild_curve_selector()
+
+        n_components = len(self._component_ids())
         n_loops = len(self.topology["loops"])
         dpg.set_value(
             self.status_text,
             f"objective: {self.pipe.obj:.4f} | components: {n_components} | loops: {n_loops}",
         )
-        dpg.set_value(self.visualisation_mode, "Graph")
+        dpg.set_value(self.visualisation_mode, "spline" if self.topology["curves"] else "graph")
         self._request_async_plot()
 
-    def _rebuild_loop_selector(self):
-        dpg.delete_item(self.loop_controls_tag, children_only=True)
+    def _component_ids(self):
+        """The detected component labels (-1 marks charts pruned as near-empty)."""
+        labels = np.unique(self.topology["components"])
+        return labels[labels >= 0]
+
+    def _rebuild_curve_selector(self):
+        dpg.delete_item(self.curve_controls_tag, children_only=True)
         curves = self.topology["curves"] if self.topology else []
 
         if not curves:
-            dpg.add_text("No component found.", parent=self.loop_controls_tag)
+            dpg.add_text("No component found.", parent=self.curve_controls_tag)
             return
 
         labels = []
         for i, c in enumerate(curves):
             if c["type"] == "loop":
-                labels.append(f"Loop {i} (persistence={c['persistence']:.3f})")
+                labels.append(f"{i}: loop (persistence={c['persistence']:.3f})")
             else:
-                labels.append(f"Path {i} (component {c['component']})")
+                labels.append(f"{i}: path (component {c['component']})")
         dpg.add_radio_button(
-            labels, default_value=labels[0], tag=self.loop_selector_tag,
-            parent=self.loop_controls_tag, callback=self._on_loop_change,
+            labels, default_value=labels[0], tag=self.curve_selector_tag,
+            parent=self.curve_controls_tag, callback=self._on_curve_change,
         )
 
-    def _on_loop_change(self, sender, app_data):
-        self.selected_loop = int(app_data.split()[1])
+    def _on_curve_change(self, sender, app_data):
+        self.selected_curve = int(app_data.split(":")[0])
         self._request_async_plot()
 
     def _on_viz_change(self):
         self._request_async_plot()
+
+    def _on_slider_change(self, sender, app_data):
+        self.t = app_data
+        dpg.set_value(self.t_display, f"t = {self.t:.3f}")
+        if dpg.get_value(self.visualisation_mode) == "spline":
+            self._request_async_plot()
 
     def _request_async_plot(self):
         if self._is_rendering:
@@ -305,7 +355,7 @@ class TopologyDemoTab:
 
     # ------------ mouse dragging for 3d plots --------------------
     def _is_3d(self):
-        return self.raw_data is not None and self.raw_data.shape[1] >= 3
+        return self.raw_data is not None and self._plot_data().shape[1] >= 3
 
     def _on_mouse_down(self, sender, app_data):
         if not dpg.is_item_hovered(self.image_tag):
@@ -374,13 +424,30 @@ class TopologyDemoTab:
         self._swap_texture(new_w, new_h)
         self._update_plot()
 
+    # ------------------- Plot space ------------------------
+    def _plot_transform(self):
+        """Affine map from the model's space to the plotted one (see geometry)."""
+        pre = self.pipe.pre if self.pipe is not None else None
+        return plot_transform(pre, self.projection, self.raw_data.shape[1])
+
+    def _plot_points(self, points):
+        """Map model-space points (means, spline samples) into the plot."""
+        M, b = self._plot_transform()
+        return np.asarray(points) @ M + b
+
+    def _plot_data(self):
+        """The observations in the plotted coordinates."""
+        if self.projection is None:
+            return self.raw_data
+        return self.raw_data @ self.projection
+
     # ------------------- Plotting ------------------------
     def _update_plot(self):
         if self.raw_data is None:
             return
 
         mode = dpg.get_value(self.visualisation_mode)
-        is_3d = self._is_3d() and mode != "Persistent Homology"
+        is_3d = self._is_3d() and mode != "persistence"
         figsize = (self.tex_w / DPI, self.tex_h / DPI)
 
         fig = Figure(figsize=figsize, dpi=DPI)
@@ -388,14 +455,14 @@ class TopologyDemoTab:
         if is_3d:
             ax.view_init(elev=self.elev, azim=self.azim)
 
-        if mode == "Data":
-            self._plot_data(ax, is_3d)
-        elif mode == "Graph":
-            self._plot_graph(ax, is_3d)
-        elif mode == "Spline":
-            self._plot_spline(ax, is_3d)
-        elif mode == "Persistent Homology":
-            self._plot_persistence(ax)
+        if mode == "data":
+            self._draw_data(ax, is_3d)
+        elif mode == "graph":
+            self._draw_graph(ax, is_3d)
+        elif mode == "spline":
+            self._draw_spline(ax, is_3d)
+        elif mode == "persistence":
+            self._draw_persistence(ax)
 
         self._render_to_texture(fig)
 
@@ -407,19 +474,19 @@ class TopologyDemoTab:
         coords = [points[:, 0], points[:, 1]] + ([points[:, 2]] if is_3d else [])
         ax.plot(*coords, **kwargs)
 
-    def _plot_data(self, ax, is_3d):
-        self._scatter(ax, self.raw_data, is_3d, s=8, c="tab:blue")
+    def _draw_data(self, ax, is_3d):
+        self._scatter(ax, self._plot_data(), is_3d, s=8, c="tab:blue")
         ax.set_title(dpg.get_value(self.data_type))
 
-    def _plot_graph(self, ax, is_3d):
+    def _draw_graph(self, ax, is_3d):
         if self.topology is None:
             ax.set_title("train first")
             return
 
-        means = self.pipe.model.means
+        means = self._plot_points(self.pipe.model.means)
         labels = self.topology["components"]
 
-        for c in np.unique(labels):
+        for c in self._component_ids():
             mask = labels == c
             color = COMPONENT_COLORS[int(c) % len(COMPONENT_COLORS)]
             self._scatter(ax, means[mask], is_3d, s=20, c=color, label=f"component {int(c)}")
@@ -430,28 +497,36 @@ class TopologyDemoTab:
             self._line(ax, path_points, is_3d, c="black", linewidth=1.5, alpha=0.7, linestyle=style)
 
         ax.legend(loc="upper right", fontsize=8)
-        ax.set_title(f"{len(np.unique(labels))} components, {len(self.topology['curves'])} curves")
+        ax.set_title(f"{len(self._component_ids())} components, "
+                     f"{len(self.topology['curves'])} curves")
 
-    def _plot_spline(self, ax, is_3d):
+    def _draw_spline(self, ax, is_3d):
+        """The selected curve, traversed up to t (the star marks that point)."""
         curves = self.topology["curves"] if self.topology else []
         if not curves:
             ax.set_title("no component to interpolate")
             return
 
-        self._scatter(ax, self.raw_data, is_3d, s=6, c="lightgray")
+        self._scatter(ax, self._plot_data(), is_3d, s=6, c="lightgray")
 
-        curve = curves[self.selected_loop]
-        t_vals = np.linspace(0, 1, 300)
-        interpolated = curve["spline"](t_vals)
-        self._line(ax, interpolated, is_3d, c="tab:red", linewidth=2)
+        curve = curves[self.selected_curve]
+        spline = curve["spline"]
+        full = self._plot_points(spline(np.linspace(0, 1, 300)))
+        self._line(ax, full, is_3d, c="tab:red", linewidth=1.0, alpha=0.3)
 
-        means = self.pipe.model.means[curve["order"]]
+        if self.t > 0:
+            walked = self._plot_points(spline(np.linspace(0, self.t, 300)))
+            self._line(ax, walked, is_3d, c="tab:red", linewidth=2.5)
+        current = self._plot_points(spline(self.t))[None, :]
+        self._scatter(ax, current, is_3d, s=180, c="crimson", marker="*",
+                      edgecolors="black", zorder=20)
+
+        means = self._plot_points(self.pipe.model.means[curve["order"]])
         self._scatter(ax, means, is_3d, s=25, c="black")
 
-        label = f"Loop {self.selected_loop}" if curve["type"] == "loop" else f"Path {self.selected_loop}"
-        ax.set_title(f"{label} spline")
+        ax.set_title(f"{self.selected_curve}: {curve['type']} spline, t = {self.t:.3f}")
 
-    def _plot_persistence(self, ax):
+    def _draw_persistence(self, ax):
         diagram = self.topology["diagram"] if self.topology else []
         if not diagram:
             ax.set_title("train first")

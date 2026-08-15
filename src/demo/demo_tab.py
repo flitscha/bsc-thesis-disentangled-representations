@@ -24,6 +24,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from core.pipeline import ManifoldPipeline
 from core.mfa import atlas_summary
+from core.tda import persistence_thresholds
 from experiments.eval import component_labels
 
 DPI = 100
@@ -48,6 +49,7 @@ class ManifoldDemoTab:
     title = "Manifold Demo"   # viewport title of the standalone run()
     intro = ""                # explanatory text at the top of the settings panel
     eval_tooltip = ""         # what the evaluation button writes to disk
+    h0_hint = ""              # dataset-specific advice on the H0 threshold
     panel_width = 380
     wrap = 340
 
@@ -139,8 +141,22 @@ class ManifoldDemoTab:
         return str(value)
 
     def _detect(self, exp):
-        """Detection step; returns the list of curves."""
-        return exp.detect()["curves"]
+        """Detection step; returns the list of curves.
+
+        Runs once with the automatic rules, then again if the panel asks for an
+        explicit H0/H1 threshold: those are multiples of the barcode's own merge
+        scale, which is only known after the first run.
+        """
+        result = exp.detect()
+        thresholds = persistence_thresholds(
+            result["diagram"],
+            h0_factor=dpg.get_value(self.h0_factor_in),
+            h1_factor=dpg.get_value(self.h1_factor_in),
+        )
+        if thresholds:
+            exp.set_params(**thresholds)
+            result = exp.detect()
+        return result["curves"]
 
     def _training_summary(self):
         n_components, n_loops, n_paths = self._topology_counts()
@@ -155,9 +171,10 @@ class ManifoldDemoTab:
         return {}
 
     def _build_detection_section(self):
-        """Detection / interpolation block; by default only the tangent weight."""
-        dpg.add_text("Interpolation (Sec. 5.7)", color=_CYAN)
+        """The TDA thresholds and the interpolation strength."""
+        dpg.add_text("TDA and interpolation", color=_CYAN)
         dpg.add_separator()
+        self._add_tda_inputs()
         self._add_interp_input()
 
     # ------------------------------------------------------------------
@@ -239,26 +256,53 @@ class ManifoldDemoTab:
         with dpg.tooltip(self.n_comp_in):
             dpg.add_text(n_comp_tooltip, wrap=260)
         self.pca_dim_in = dpg.add_input_int(
-            label="PCA dim (0=off)", default_value=pca_dim, width=_LABEL_WIDTH)
+            label="PCA dim (0 = off)", default_value=pca_dim, width=_LABEL_WIDTH)
         if pca_tooltip:
             with dpg.tooltip(self.pca_dim_in):
                 dpg.add_text(pca_tooltip, wrap=260)
 
     def _build_distance_section(self, k=4, k_tooltip=None):
-        dpg.add_text("Distance metric (Sec. 5.4)", color=_CYAN)
+        dpg.add_text("Distance metric", color=_CYAN)
         dpg.add_separator()
         self.lambda_in = dpg.add_input_float(
             label="off-manifold penalty", default_value=30.0, min_value=0.0,
             format="%.2f", step=0.5, width=_LABEL_WIDTH,
         )
         with dpg.tooltip(self.lambda_in):
-            dpg.add_text("Penalty for moving off the tangent space.", wrap=260)
+            dpg.add_text("Penalty lambda for moving off the tangent space. "
+                         "0 = plain Euclidean, larger stretches the normal "
+                         "directions more.", wrap=260)
         self.k_distance_in = dpg.add_input_int(
             label="k - distance graph", default_value=k, width=_LABEL_WIDTH)
         with dpg.tooltip(self.k_distance_in):
             dpg.add_text(k_tooltip or
                          "Neighbors of the k-NN graph whose shortest paths give "
-                         "the geodesic distance (Sec. 5.4).", wrap=260)
+                         "the geodesic distance.", wrap=260)
+
+    def _add_tda_inputs(self):
+        """The two persistence thresholds, as multiples of the merge scale."""
+        self.h0_factor_in = dpg.add_input_float(
+            label="H0 threshold (0 = auto)", default_value=0.0, min_value=0.0,
+            step=0.1, format="%.2f", width=_LABEL_WIDTH,
+        )
+        with dpg.tooltip(self.h0_factor_in):
+            dpg.add_text(
+                "How persistent a connected component has to be to count. "
+                "0 uses the automatic largest-gap rule; a value > 0 replaces it "
+                "by an explicit threshold at that multiple of the median H0 "
+                "merge scale, which keeps it free of the data scale. "
+                + self.h0_hint, wrap=260)
+
+        self.h1_factor_in = dpg.add_input_float(
+            label="H1 threshold (0 = auto)", default_value=0.0, min_value=0.0,
+            step=0.1, format="%.2f", width=_LABEL_WIDTH,
+        )
+        with dpg.tooltip(self.h1_factor_in):
+            dpg.add_text(
+                "How persistent a loop has to be to count. 0 uses the automatic "
+                "prominence rule (death >= 1.8 x birth); a value > 0 replaces it "
+                "by an explicit threshold at that multiple of the median H0 "
+                "merge scale. Raise it to suppress spurious loops.", wrap=260)
 
     def _add_interp_input(self):
         self.interp_w_in = dpg.add_input_float(
@@ -267,11 +311,11 @@ class ManifoldDemoTab:
         )
         with dpg.tooltip(self.interp_w_in):
             dpg.add_text("Strength of the soft chart-tangent alignment of the "
-                         "spline 0 = pure minimal-curvature interpolation.", wrap=260)
+                         "spline. 0 = pure minimal-curvature interpolation.", wrap=260)
 
     def _build_view_sections(self):
         """Render mode, component selector and the t slider."""
-        dpg.add_text("Render Mode", color=_CYAN)
+        dpg.add_text("Render mode", color=_CYAN)
         dpg.add_separator()
         self.mode_var = dpg.add_radio_button(
             ("samples", "pca", "spline", "persistence"),
@@ -285,7 +329,7 @@ class ManifoldDemoTab:
             ("-",), default_value="-", callback=self._on_component_change)
 
         dpg.add_spacer(height=8)
-        dpg.add_text("Spline Parameter t", color=_CYAN)
+        dpg.add_text("Spline parameter t", color=_CYAN)
         dpg.add_separator()
         self.t_disp = dpg.add_text(self._format_t(0.0))
         self.t_slider = dpg.add_slider_double(

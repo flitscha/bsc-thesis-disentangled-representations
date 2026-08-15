@@ -59,6 +59,39 @@ def _h0_num_components(diagram, gap_factor):
     return 1
 
 
+def median_merge_scale(diagram):
+    """
+    Median finite H0 death: the typical scale at which two components merge.
+
+    Persistence thresholds are lengths in the units of the distance matrix, so a
+    bare number means nothing across datasets. Expressed as a multiple of this
+    scale they stay free of the data scale (see 'persistence_thresholds').
+    Returns None if the barcode has no finite death.
+    """
+    deaths = [d for (dim, (_, d)) in diagram if dim == 0 and np.isfinite(d)]
+    return float(np.median(deaths)) if deaths else None
+
+
+def persistence_thresholds(diagram, h0_factor=0.0, h1_factor=0.0):
+    """
+    Turn scale-free H0/H1 threshold factors into absolute persistence thresholds.
+
+    Each factor is a multiple of the median H0 merge scale of 'diagram'. A factor
+    of 0 (or less) keeps the automatic rule of 'detect_tda' and is left out, so
+    the result can be fed straight into 'ManifoldPipeline.set_params'.
+    """
+    scale = median_merge_scale(diagram)
+    if not scale or scale <= 0:
+        return {}
+
+    thresholds = {}
+    if h0_factor and h0_factor > 0:
+        thresholds["min_persistence_h0"] = float(h0_factor) * scale
+    if h1_factor and h1_factor > 0:
+        thresholds["min_persistence_h1"] = float(h1_factor) * scale
+    return thresholds
+
+
 def extract_components(distance_matrix, n_components):
     """
     Assign each node a connected-component label (0 .. n_components-1).

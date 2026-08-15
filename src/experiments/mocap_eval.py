@@ -26,6 +26,7 @@ from scipy.optimize import linear_sum_assignment
 
 from data.mocap import make_multi_motion_dataset, FACTOR_UNIT, motion_spec
 from core.pipeline import ManifoldPipeline
+from core.tda import persistence_thresholds
 from experiments.eval import align_loop, align_arc, topology_report, discrete_ari, component_labels
 from experiments.eval import figures as F
 from visualization.mocap import draw_vector
@@ -190,11 +191,10 @@ def _apply_h0_threshold(pipe, factor):
     gait comes near) the rule under-counts, and the threshold is what is left.
     Being a multiple of the median merge scale keeps it free of the data scale.
     """
-    deaths = [d for (dim, (_, d)) in pipe.structure_["diagram"]
-              if dim == 0 and np.isfinite(d)]
-    if not deaths:
+    thresholds = persistence_thresholds(pipe.structure_["diagram"], h0_factor=factor)
+    if not thresholds:
         return
-    pipe.set_params(min_persistence_h0=float(factor) * float(np.median(deaths)))
+    pipe.set_params(**thresholds)
     pipe.detect_structure()
     pipe.interpolate()
 

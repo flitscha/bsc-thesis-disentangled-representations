@@ -29,14 +29,14 @@ class MainApplication:
                     self.synthetic_tab.build_tab_ui()
                 with dpg.tab(label="Loop Detection"):
                     self.manifold_1d_tab.build_tab_ui()
+                with dpg.tab(label="Topology (TDA)"):
+                    self.topology_tab.build_tab_ui()
                 with dpg.tab(label="MNIST Rotation"):
                     self.mnist_tab.build_tab_ui()
                 with dpg.tab(label="Faces"):
                     self.faces_tab.build_tab_ui()
                 with dpg.tab(label="Motion Capture"):
                     self.mocap_tab.build_tab_ui()
-                with dpg.tab(label="Topology (TDA)"):
-                    self.topology_tab.build_tab_ui()
 
         self.mnist_tab.start_workers()
         self.faces_tab.start_workers()

@@ -7,6 +7,33 @@ import numpy as np
 from matplotlib.patches import Ellipse
 
 
+# --------------------------- Plot space ---------------------------
+def plot_transform(pre, projection, ambient_dim):
+    """
+    Affine map (M, b) from the space a fitted model lives in to the plotted one,
+    so that model_point @ M + b can be drawn next to the observations.
+
+    The model is fitted on the preprocessed data: with PCA switched on its means
+    and covariances live in the reduced space, while the data and the embedding
+    map are ambient. Two steps therefore have to be undone before plotting:
+
+        reduced --(pre.inverse_transform)--> ambient --(projection)--> plotted
+
+    'pre' is the fitted PCARotation or None, 'projection' the (D, d) map back to
+    the intrinsic coordinates of an embedded dataset (None if not embedded) and
+    'ambient_dim' the observation dimension. A covariance maps as M.T @ cov @ M.
+    """
+    if pre is None:
+        M = np.eye(ambient_dim) if projection is None else np.asarray(projection)
+        return M, np.zeros(M.shape[1])
+
+    M = pre.components_.T  # reduced -> ambient
+    b = pre.mean_
+    if projection is not None:
+        M, b = M @ projection, b @ projection
+    return M, b
+
+
 # --------------------------- Axis Limits ---------------------------
 def set_axis_limits(ax, points, padding=0.1, adjustable=None):
     """

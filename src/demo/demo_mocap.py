@@ -1,7 +1,6 @@
 import sys
 import os
 
-import numpy as np
 import dearpygui.dearpygui as dpg
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -11,7 +10,6 @@ from visualization.mocap import render_samples_frame, render_spline_frame
 from visualization.mnist import render_pca_frame, render_persistence_frame
 from experiments.mocap_eval import (
     run_evaluation as run_mocap_evaluation,
-    _apply_h0_threshold,
     _spec_label,
     _format_value,
 )
@@ -36,12 +34,16 @@ class MocapDemoTab(ManifoldDemoTab):
         "not an image. Every motion is a separate component; a periodic one "
         "(walking, running) closes into a loop, a one-way movement (sitting "
         "down) stays an arc. The factor is the progress within one repetition, "
-        "in percent. Detected with TDA (Sec. 5.6)."
+        "in percent. Detected with TDA."
     )
     eval_tooltip = (
         "Offline evaluation of the current table: topology (M1), ARI against the "
         "motion labels (M4) and the per-motion progress error in percent (M2), "
         "plus figures, into results/mocap/."
+    )
+    h0_hint = (
+        "Needed once one motion sits much further away from the others than they "
+        "do from each other (try 2.2)."
     )
 
     def __init__(self):
@@ -103,27 +105,11 @@ class MocapDemoTab(ManifoldDemoTab):
         super()._build_distance_section(
             k=4,
             k_tooltip="Neighbors of the k-NN graph whose shortest paths give the "
-                      "geodesic distance (Sec. 5.4). Small values keep the "
-                      "recordings apart: with k = 4 the graph falls into one "
-                      "piece per motion, which is what lets the automatic H0 rule "
+                      "geodesic distance. Small values keep the recordings "
+                      "apart: with k = 4 the graph falls into one piece per "
+                      "motion, which is what lets the automatic H0 rule "
                       "separate them.",
         )
-
-    def _build_detection_section(self):
-        dpg.add_text("Detection (Sec. 5.6/5.7)", color=_CYAN)
-        dpg.add_separator()
-        self.h0_factor_in = dpg.add_input_float(
-            label="H0 threshold (0=auto)", default_value=0.0, min_value=0.0,
-            step=0.1, format="%.2f", width=125,
-        )
-        with dpg.tooltip(self.h0_factor_in):
-            dpg.add_text(
-                "0 uses the automatic largest-gap rule of Sec. 5.6. A value > 0 "
-                "replaces it by an explicit persistence threshold at that "
-                "multiple of the median H0 merge scale, which is what it takes "
-                "once one motion sits much further away from the others than "
-                "they do from each other (try 2.2).", wrap=260)
-        self._add_interp_input()
 
     def _preset_motions(self):
         """The configuration of the thesis experiment: two loops and two arcs."""
@@ -137,6 +123,7 @@ class MocapDemoTab(ManifoldDemoTab):
         dpg.set_value(self.lambda_in, 30.0)
         dpg.set_value(self.k_distance_in, 4)
         dpg.set_value(self.h0_factor_in, 0.0)
+        dpg.set_value(self.h1_factor_in, 0.0)
         dpg.set_value(self.interp_w_in, 3.0)
 
     # ------------------------------------------------------------------
@@ -173,13 +160,6 @@ class MocapDemoTab(ManifoldDemoTab):
     # ------------------------------------------------------------------
     # detection and evaluation
     # ------------------------------------------------------------------
-    def _detect(self, exp):
-        exp.detect()
-        h0_factor = dpg.get_value(self.h0_factor_in)
-        if h0_factor > 0:
-            _apply_h0_threshold(exp, h0_factor)
-        return exp.curves_
-
     def _member_ids(self):
         return self.component_gt
 

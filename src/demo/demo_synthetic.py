@@ -81,39 +81,39 @@ class SyntheticDemoTab:
             dpg.add_text("Data")
             self.data_type = dpg.add_combo(
                 ("line", "circle", "swiss_roll", "torus", "curve_in_3d"),
-                default_value="circle", label="Data", width=_width
+                default_value="circle", label="Dataset", width=_width
             )
             self.num_points = dpg.add_input_int(
-                label="Number of data points", default_value=100, min_value=1, width=_width
+                label="# data points", default_value=100, min_value=1, width=_width
             )
             self.embed_dim = dpg.add_input_int(
                 label="Embed into dimension (0 = off)", default_value=0, min_value=0, width=_width
             )
 
             dpg.add_separator()
-            dpg.add_text("Model")
+            dpg.add_text("Mixture model")
             self.cov_type = dpg.add_combo(
                 ("isotropic", "diagonal", "mfa", "full"),
-                default_value="mfa", label="Model", width=_width
+                default_value="mfa", label="covariance type", width=_width
             )
-            self.shared_cov = dpg.add_checkbox(label="Shared Covariances", default_value=False)
+            self.shared_cov = dpg.add_checkbox(label="shared covariances", default_value=False)
             self.num_components = dpg.add_input_int(
-                label="Number of Components", default_value=15, min_value=1, width=_width
+                label="# components", default_value=15, min_value=1, width=_width
             )
             self.manifold_dim = dpg.add_input_int(
-                label="Manifold Dimension (H)", default_value=1, min_value=1, width=_width
+                label="latent dim (H)", default_value=1, min_value=1, width=_width
             )
 
             dpg.add_separator()
             dpg.add_button(label="Train", callback=self._on_train, width=-1)
 
             dpg.add_separator()
-            dpg.add_text("Visualization")
+            dpg.add_text("Render mode")
             self.draw_points = dpg.add_checkbox(
-                label="Draw Points", default_value=True, callback=self._on_viz_change,
+                label="draw points", default_value=True, callback=self._on_viz_change,
             )
             self.draw_means = dpg.add_checkbox(
-                label="Draw Means", default_value=True, callback=self._on_viz_change,
+                label="draw means", default_value=True, callback=self._on_viz_change,
             )
             self.visualisation_mode = dpg.add_radio_button(
                 ("ellipsoid", "line", "plane", "none"),

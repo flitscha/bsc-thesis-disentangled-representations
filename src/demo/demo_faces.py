@@ -34,8 +34,7 @@ class FacesDemoTab(ManifoldDemoTab):
     intro = (
         "Rendered faces: every face is a separate component and sweeps one "
         "factor over its full range (rotation in degrees, expressions in "
-        "blendshape units), so each face is an open arc. Detected with TDA "
-        "(Sec. 5.6)."
+        "blendshape units), so each face is an open arc. Detected with TDA."
     )
     eval_tooltip = (
         "Offline evaluation of the current table: topology (M1), ARI against the "
@@ -122,6 +121,8 @@ class FacesDemoTab(ManifoldDemoTab):
         dpg.set_value(self.pca_dim_in, 40)
         dpg.set_value(self.lambda_in, 30.0)
         dpg.set_value(self.k_distance_in, 4)
+        dpg.set_value(self.h0_factor_in, 0.0)
+        dpg.set_value(self.h1_factor_in, 0.0)
         dpg.set_value(self.interp_w_in, 3.0)
 
     # ------------------------------------------------------------------

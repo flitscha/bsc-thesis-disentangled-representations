@@ -1,7 +1,6 @@
 import sys
 import os
 
-import numpy as np
 import dearpygui.dearpygui as dpg
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -28,7 +27,7 @@ class MNISTDemoTab(ManifoldDemoTab):
     wrap = 320
     intro = (
         "Rotating MNIST digits: each digit is a separate component, a full 0-360 "
-        "sweep a loop, a partial sweep an arc. Detected with TDA (Sec. 5.6)."
+        "sweep a loop, a partial sweep an arc. Detected with TDA."
     )
     eval_tooltip = (
         "Offline evaluation of the current table. One selected digit runs the "
@@ -107,6 +106,8 @@ class MNISTDemoTab(ManifoldDemoTab):
         dpg.set_value(self.seed_in, 0)
         dpg.set_value(self.lambda_in, 30.0)
         dpg.set_value(self.k_distance_in, 4)
+        dpg.set_value(self.h0_factor_in, 0.0)
+        dpg.set_value(self.h1_factor_in, 0.0)
         dpg.set_value(self.interp_w_in, 3.0)
 
     # ------------------------------------------------------------------

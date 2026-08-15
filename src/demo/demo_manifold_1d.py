@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.pipeline import ManifoldPipeline
 from data.synthetic import make_dataset
+from visualization.geometry import plot_transform
 from visualization.gmm import visualize_gmm
 from visualization.graph import visualize_traversal
 from visualization.spline import visualize_spline
@@ -83,9 +84,8 @@ class Manifold1DTab:
             dpg.add_text(
                 "Fits an MFA to a 1D manifold, builds a tangent-aware distance "
                 "from it, and traces the loop with the naive graph traversal "
-                "(a baseline to TDA). Two separate k-NN graphs are used, each "
-                "with its own k: one for the distance (Sec. 5.4), one for the "
-                "traversal (Sec. 5.5).",
+                "(the MST baseline to TDA). The traversal needs no k of its "
+                "own, so the only k here is the one of the distance graph.",
                 wrap=380, color=[150, 150, 150],
             )
             dpg.add_separator()
@@ -93,10 +93,10 @@ class Manifold1DTab:
             dpg.add_text("Data")
             self.data_type = dpg.add_combo(
                 ("circle", "curve_in_3d"),
-                default_value="circle", label="Data", width=_width
+                default_value="circle", label="Dataset", width=_width
             )
             self.num_points = dpg.add_input_int(
-                label="Number of data points", default_value=100, min_value=1, width=_width
+                label="# data points", default_value=100, min_value=1, width=_width
             )
             self.embed_dim = dpg.add_input_int(
                 label="Embed into dimension (0 = off)", default_value=0, min_value=0, width=_width
@@ -105,22 +105,22 @@ class Manifold1DTab:
             dpg.add_separator()
             dpg.add_text("MFA model")
             self.num_components = dpg.add_input_int(
-                label="Number of components", default_value=15, min_value=1, width=_width
+                label="# components", default_value=15, min_value=1, width=_width
             )
             self.pca_dim = dpg.add_input_int(
                 label="PCA dim (0 = off)", default_value=0, min_value=0, width=_width
             )
 
             dpg.add_separator()
-            dpg.add_text("Distance metric (Sec. 5.4)")
+            dpg.add_text("Distance metric")
             self.lambda_aniso = dpg.add_input_float(
-                label="lambda (off-manifold penalty)", default_value=30.0,
+                label="off-manifold penalty", default_value=30.0,
                 min_value=0.0, width=_width,
             )
             with dpg.tooltip(self.lambda_aniso):
                 dpg.add_text(
-                    "Penalty for moving off the tangent space. 0 = plain "
-                    "Euclidean, larger stretches normal directions more.",
+                    "Penalty lambda for moving off the tangent space. 0 = plain "
+                    "Euclidean, larger stretches the normal directions more.",
                     wrap=260,
                 )
             self.k_distance = dpg.add_input_int(
@@ -129,22 +129,36 @@ class Manifold1DTab:
             with dpg.tooltip(self.k_distance):
                 dpg.add_text(
                     "Neighbors of the k-NN graph whose shortest paths give the "
-                    "geodesic distance (Sec. 5.4).",
+                    "geodesic distance.",
                     wrap=260,
                 )
 
             dpg.add_separator()
-            dpg.add_button(label="Train", callback=self._on_train, width=-1)
+            dpg.add_text("Interpolation")
+            self.interp_weight = dpg.add_input_float(
+                label="tangent weight", default_value=3.0, min_value=0.0,
+                step=0.5, width=_width,
+            )
+            with dpg.tooltip(self.interp_weight):
+                dpg.add_text(
+                    "Strength of the soft chart-tangent alignment of the "
+                    "spline. 0 = pure minimal-curvature interpolation.",
+                    wrap=260,
+                )
 
             dpg.add_separator()
-            dpg.add_text("Draw Setting")
+            dpg.add_button(label="Train + Detect (traversal)",
+                           callback=self._on_train, width=-1)
+
+            dpg.add_separator()
+            dpg.add_text("Render mode")
             self.draw_mode = dpg.add_radio_button(
                 ("data", "mfa", "graph", "spline"),
                 default_value="data", callback=self._on_viz_change,
             )
 
             dpg.add_separator()
-            dpg.add_text("t (spline interpolation)")
+            dpg.add_text("Spline parameter t")
             self.t_slider = dpg.add_slider_float(
                 default_value=0.0, min_value=0.0, max_value=1.0,
                 width=-1, callback=self._on_slider_change,
@@ -198,6 +212,7 @@ class Manifold1DTab:
             lambda_aniso=dpg.get_value(self.lambda_aniso),
             n_neighbors=dpg.get_value(self.k_distance),
             detection="traversal",
+            interp_tangent_weight=dpg.get_value(self.interp_weight),
         )
         self.pipe.fit(self.data)
 
@@ -313,6 +328,20 @@ class Manifold1DTab:
         self._swap_texture(new_w, new_h)
         self._update_plot()
 
+    # ------------------- Plot space ------------------------
+    def _plot_transform(self):
+        """Affine map from the model's space to the plotted one (see geometry)."""
+        return plot_transform(self.pipe.pre, self.projection, self.data.shape[1])
+
+    def _plot_points(self, points):
+        """Map model-space points (means, spline samples) into the plot."""
+        M, b = self._plot_transform()
+        return np.asarray(points) @ M + b
+
+    def _plot_data(self):
+        """The observations in the plotted coordinates."""
+        return self.data if self.projection is None else self.data @ self.projection
+
     # ------------------- Plotting ------------------------
     def _update_plot(self):
         if self.pipe is None:
@@ -327,35 +356,28 @@ class Manifold1DTab:
             ax.view_init(elev=self.elev, azim=self.azim)
 
         model = self.pipe.model
-        proj = self.projection
+        M, _ = self._plot_transform()
         mode = dpg.get_value(self.draw_mode)
 
-        if mode == "data":
+        if mode in ("data", "mfa"):
             visualize_gmm(
-                ax=ax, data=self.data, means=model.means,
-                covariances=model.covariances, priors=model.prior,
-                projection_matrix=proj, draw_points=True,
-                visualisation_mode="none", draw_means=False,
-            )
-
-        elif mode == "mfa":
-            visualize_gmm(
-                ax=ax, data=self.data, means=model.means,
-                covariances=model.covariances, priors=model.prior,
-                projection_matrix=proj, draw_points=True,
-                visualisation_mode="line", draw_means=True,
+                ax=ax, data=self._plot_data(), means=self._plot_points(model.means),
+                covariances=[M.T @ cov @ M for cov in model.covariances],
+                priors=model.prior, projection_matrix=None, draw_points=True,
+                visualisation_mode="line" if mode == "mfa" else "none",
+                draw_means=(mode == "mfa"),
             )
 
         elif mode == "graph" and self.graph_edges is not None:
-            means = model.means @ proj if proj is not None else model.means
-            visualize_traversal(ax=ax, means=means, order=self.traversal_order)
+            visualize_traversal(ax=ax, means=self._plot_points(model.means),
+                                order=self.traversal_order)
 
         elif mode == "spline" and self.spline is not None:
             visualize_spline(
-                ax=ax, 
-                data=self.data,
-                spline=self.spline,
-                t=self.t, 
+                ax=ax,
+                data=self._plot_data(),
+                spline=lambda t: self._plot_points(self.spline(t)),
+                t=self.t,
                 draw_points=True
             )
 
