@@ -81,8 +81,8 @@ Linux, Python 3.9, plus a C++17 compiler and OpenMP for `vamm`.
 
 ```bash
 conda create -n vamm python=3.9 && conda activate vamm
-pip install numpy scipy matplotlib dearpygui gudhi torchvision
-pip install ./external/vamm
+pip install -r requirements.txt
+pip install ./external/vamm      # ships as a copy in external/, builds its C++ extension
 ```
 
 
