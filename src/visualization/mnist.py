@@ -1,6 +1,8 @@
 """
-Visualizations for the MNIST rotation example.
-Uses `visualize_spline` from `spline.py` as the basis for the PCA background view.
+The plots of the MNIST rotation tab.
+
+The PCA background view is built on `visualize_spline` from spline.py. The faces and mocap tabs
+reuse most of this module, since only the frames that show the data itself differ between them.
 """
 
 import numpy as np
@@ -9,10 +11,7 @@ from .spline import visualize_spline
 
 
 def to_image(v, pixel_mean=None, pixel_std=None, shape=(30, 30)):
-    """
-    Invert the standardization (v * std + mean) to turn a standardized vector
-    back into a displayable [0, 1] image.
-    """
+    """Undo the standardization, turning a data vector back into a displayable [0, 1] image."""
     v = np.asarray(v, dtype=float)
     if pixel_std is not None:
         v = v * np.asarray(pixel_std)
@@ -41,11 +40,11 @@ def render_samples_frame(fig, X, angles, digit, pixel_mean=None, pixel_std=None)
 
 def render_persistence_frame(fig, diagram, curves=None, selected=None):
     """
-    Persistence diagram of the detected structure: H0 gives the components, H1
-    the loops, infinite deaths sit on a line above the finite features.
+    Persistence diagram of the detected structure, with H0 for components and H1 for loops.
 
-    Each loop is annotated with its component index, the same number as in the
-    "component to traverse" selector; the loop matching 'selected' is ringed.
+    Infinite deaths sit on a line above the finite features. Each loop is annotated with its
+    component index, the same number the "component to traverse" selector shows, and the loop
+    matching 'selected' is ringed.
     """
     ax = fig.add_subplot(111)
     if not diagram:

@@ -1,18 +1,17 @@
 """
-Motion capture experiment: several motions of one person at once.
+Motion capture: several motions of one person at once.
 
-The only experiment on data that are not images. An observation is a pose, the 93
-coordinates of 31 joints, and a component is one motion: walking and running
-return to the pose they started from and are loops, while waving (the arm travels
-out and back along the same path) and sitting down are open arcs.
+The only experiment on data that are not images. An observation is a pose, the 93 coordinates of
+31 joints, and a component is one motion. Walking and running return to the pose they started
+from and are therefore loops. Waving is an arc, since the arm travels out and back along the same
+path, and so is sitting down.
 
-The ground-truth factor is the progress within one repetition in percent, cut
-from a physical signal (foot gap, hand position, hip height), never from the
-fitted model.
+The ground-truth factor is the progress within one repetition, in percent. It is cut from a
+physical signal, the foot gap, the hand position or the hip height, never from the fitted model.
 
-    M1  topology        expected vs. detected components and per-component type
+    M1  topology        expected against detected components, and the type of each
     M2  progress error  per component, in percent of its repetition
-    M4  ARI             agreement of detected components with the motion labels
+    M4  ARI             how well the detected components agree with the motion labels
 
 Results are written to results/mocap/<tag>/.
 """
@@ -33,10 +32,9 @@ from experiments.eval import (
 from experiments.eval import figures as F
 from visualization.mocap import draw_vector
 
-# The configuration reported in the thesis: two periodic motions and two one-way
-# movements, i.e. two loops and two arcs. With the defaults below (in particular
-# `n_neighbors = 4`) the automatic H0 rule separates all four on its own; see
-# `h0_persistence_factor` for the explicit threshold that replaces the rule.
+# Two periodic motions and two one-way movements, so two loops and two arcs. With the defaults
+# below, and `n_neighbors = 4` in particular, the automatic H0 rule separates all four on its own.
+# `h0_persistence_factor` is the explicit threshold that can replace that rule.
 DEFAULT_SPECS = [
     {"motion": "walk"},
     {"motion": "run"},
@@ -44,17 +42,17 @@ DEFAULT_SPECS = [
     {"motion": "sit_down"},
 ]
 
-# A pose vector is 31 joints x 3 coordinates; there is no image shape.
+# a pose vector is 31 joints by 3 coordinates, so there is no image shape here
 POSE_SHAPE = (31, 3)
 
 
 def _kind(spec):
-    """"loop" or "arc" - what the motion of this spec is expected to be."""
+    """Whether the motion of this spec is expected to be a loop or an arc."""
     return motion_spec(str(spec["motion"]))["kind"]
 
 
 def _expected_type(spec):
-    """The curve type `topology_report` uses: an arc is traced as a path."""
+    """The curve type `topology_report` expects, where an arc is traced as a path."""
     return "loop" if _kind(spec) == "loop" else "path"
 
 
@@ -63,7 +61,7 @@ def _spec_label(spec):
 
 
 def _spec_tag(specs):
-    """Compact filename tag like 'walk_run_wave'."""
+    """Compact folder name describing the setup, such as 'walk_run_wave'."""
     return "_".join(_spec_label(s) for s in specs)
 
 
@@ -75,9 +73,9 @@ def _progress_error(t, values, kind):
     """
     Residual of the recovered coordinate against the true progress, in percent.
 
-    A loop is periodic in the progress, so the alignment is the circular one
-    (direction + offset) on the progress read as an angle, 100 % = 360 deg. An
-    arc gets the affine alignment. In neither case is the speed calibrated out.
+    The progress of a loop is periodic, so it is read as an angle with 100 % standing for 360
+    degrees and gets the circular alignment. An arc gets the affine one. In neither case is the
+    speed calibrated out.
     """
     if kind == "loop":
         return align_loop(t, np.asarray(values) * 3.6)["error_deg"] / 3.6
@@ -86,12 +84,10 @@ def _progress_error(t, values, kind):
 
 def _match_specs_to_curves(cid, component_gt, curves, specs):
     """
-    Assign expected motions to detected curves one-to-one, maximising the total
-    ground-truth overlap. A curve backs at most one motion, a pair with zero
-    overlap is never assigned, and every curve nobody claims is 'extra'.
+    Assign the expected motions to the detected curves one to one, maximising the total overlap.
 
-    Returns (matches, extra_curve_ids) with each match
-        {spec, motion, kind, curve (int|None), n_overlap}.
+    A curve backs at most one motion and a pair with zero overlap is never assigned, so every
+    curve that nobody claims comes back as an extra one.
     """
     valid = [j for j, c in enumerate(curves) if c.get("spline") is not None]
     overlap = np.zeros((len(specs), len(valid)), dtype=int)
@@ -120,9 +116,9 @@ def _match_specs_to_curves(cid, component_gt, curves, specs):
 
 def _per_curve_progress_errors(t, cid, values, component_gt, curves, specs):
     """
-    Per detected curve: align its coordinate to the true progress of its
-    majority motion and report the residual in percent. A curve that swallowed a
-    second motion shows up as a low purity together with a large error.
+    Align each detected curve to the true progress of its majority motion, reported in percent.
+
+    A curve that swallowed a second motion shows up as a low purity together with a large error.
     """
     out = []
     for j, curve in enumerate(curves):
@@ -132,7 +128,7 @@ def _per_curve_progress_errors(t, cid, values, component_gt, curves, specs):
             continue
         labels, counts = np.unique(component_gt[mask], return_counts=True)
         majority = int(labels[np.argmax(counts)])
-        # align against the type the curve was detected as, not the expected one
+        # align against the type the curve was detected as, not the one we expected
         kind = "loop" if curve["type"] == "loop" else "arc"
         err = _progress_error(t[mask], values[mask], kind)
         out.append({
@@ -151,12 +147,11 @@ def _per_curve_progress_errors(t, cid, values, component_gt, curves, specs):
 def _ground_truth_strip(pipe, curve, match, cid, values, t, component_gt, X,
                         n_frames=6):
     """
-    One strip for a matched (motion, curve) pair.
+    Build one strip for a matched (motion, curve) pair.
 
-    Top row: that motion's own input poses, at the ground-truth progress values
-    closest to an evenly spaced grid over the repetition.
-    Bottom row: the matched curve reconstructed at the coordinate that the
-    alignment maps the same grid to.
+    The top row holds that motion's own input poses, at the ground-truth progress values closest
+    to an evenly spaced grid over the repetition. The bottom row is the matched curve,
+    reconstructed at the coordinate the alignment maps the same grid to.
     """
     i = match["spec"]
     is_loop = curve["type"] == "loop"
@@ -176,7 +171,7 @@ def _ground_truth_strip(pipe, curve, match, cid, values, t, component_gt, X,
 
 
 def _reconstruct_along(pipe, curve, n):
-    """n reconstructions evenly along a curve."""
+    """n reconstructions spread evenly along a curve."""
     t_grid = np.linspace(0.0, 1.0, n, endpoint=curve["type"] != "loop")
     return pipe.reconstruct(np.asarray(curve["spline"](t_grid)))
 
@@ -190,17 +185,15 @@ def run_evaluation(
     """
     Run the motion capture evaluation for one configuration and save it.
 
-    The defaults are the configuration of the run reported in the thesis
-    (`results/mocap/walk_run_wave_sit_down_seed0/`).
+    The defaults reproduce the stored run in `results/mocap/walk_run_wave_sit_down_seed0/`.
 
-    `h0_persistence_factor` / `h1_persistence_factor` > 0 replace the automatic
-    rules of §5.6 by an explicit threshold at that multiple of the median H0
-    merge scale (see `ManifoldPipeline.apply_persistence_thresholds`); 0 keeps
-    the automatic rule. H0 is what it takes here once one motion sits much
-    further away from the others than they do from each other: the largest-gap
-    rule then counts only the widest gap and under-counts the components.
+    A positive `h0_persistence_factor` or `h1_persistence_factor` replaces the automatic detection
+    rule by an explicit threshold at that multiple of the median H0 merge scale; 0 keeps the
+    automatic rule. The H0 threshold matters here as soon as one motion sits much further from the
+    others than they do from each other, because the largest-gap rule then only sees that one gap
+    and undercounts the components.
 
-    Returns (summary_dict, run_dir).
+    Returns the summary dict and the directory it was written to.
     """
     def say(msg):
         if progress is not None:
@@ -232,14 +225,14 @@ def run_evaluation(
     pipe.detect()
     pipe.apply_persistence_thresholds(h0_persistence_factor, h1_persistence_factor)
     t, cid = pipe.transform(X)
-    comp_id = component_labels(pipe, X)  # H0 component per observation
+    comp_id = component_labels(pipe, X) # the detected component of every observation
 
     matches, extra_curve_ids = _match_specs_to_curves(
         cid, component_gt, pipe.curves_, specs)
 
     m1 = topology_report(pipe.structure_, expected_n, expected_types,
                          component_labels=comp_id)
-    m4 = discrete_ari(comp_id, component_gt)  # H0 components vs. motions
+    m4 = discrete_ari(comp_id, component_gt) # detected components against the true motions
     per_curve = _per_curve_progress_errors(t, cid, values, component_gt,
                                            pipe.curves_, specs)
 
@@ -292,7 +285,7 @@ def run_evaluation(
         def draw(ax, vector):
             draw_vector(ax, vector, pose_mean, pose_std, lw=1.4)
 
-        # one strip per matched motion: its own poses over the model curve
+        # one strip per matched motion: its own poses above the model curve
         correct = []
         for m in matches:
             j = m["curve"]
@@ -307,7 +300,7 @@ def run_evaluation(
                 "true_imgs": top, "recon_imgs": recon,
             })
 
-        # curves no motion claimed: model-only rows, numbered
+        # the curves no motion claimed become model-only rows
         extra = [(f"extra {k}", _reconstruct_along(pipe, pipe.curves_[j], 6), None)
                  for k, j in enumerate(extra_curve_ids, start=1)]
 
@@ -339,7 +332,7 @@ def run_evaluation(
 
 
 def _format_summary(summary):
-    """Compact human-readable one-block summary for logging / a status label."""
+    """Compact readable summary for logging or a status label."""
     m = summary["metrics"]
     topo = m["topology"]
     lines = [

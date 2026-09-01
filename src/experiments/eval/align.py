@@ -1,15 +1,15 @@
 """
 Post-hoc alignment of a learned 1D coordinate to a ground-truth factor.
 
-The model is unsupervised and recovers the factor only up to a few freedoms,
-which are the only ones fitted out here:
+The model is unsupervised, so it can only recover the factor up to a few freedoms. Those are
+exactly the ones fitted out here:
 
-    loop: direction s in {+1, -1} and offset delta.
-    arc:  direction and scale, since t is always in [0, 1] while the true factor
-          may span 0..180 or 0..90.
+    loop: the direction s in {+1, -1} and an offset delta.
+    arc:  direction and scale, since t always runs over [0, 1] while the true factor may span
+          0 to 180 degrees, 0 to 90, or anything else.
 
-Non-linear speed distortion is deliberately NOT fitted out: a non-uniform
-traversal stays visible as a residual.
+A non-linear distortion of the speed is deliberately left in, so that a non-uniform traversal
+stays visible as a residual.
 """
 
 import numpy as np
@@ -17,10 +17,10 @@ import numpy as np
 
 def align_loop(t, theta_deg):
     """
-    Align a loop coordinate t in [0, 1) to a periodic ground-truth angle (deg).
+    Align a loop coordinate t in [0, 1) to a periodic ground-truth angle in degrees.
 
-    Returns the recovered direction "s", the offset "delta_deg", the (N,) unsigned
-    residual "error_deg" and the two conversions "theta_of_t" / "t_of_theta".
+    Returns the recovered direction "s", the offset "delta_deg", the (N,) unsigned residual
+    "error_deg" and the two conversions "theta_of_t" and "t_of_theta".
     """
     t = np.asarray(t, dtype=float)
     theta = np.asarray(theta_deg, dtype=float)
@@ -42,11 +42,10 @@ def align_loop(t, theta_deg):
 
 def align_arc(t, factor):
     """
-    Align an arc coordinate t in [0, 1] to an interval-valued ground-truth factor
-    by the best affine map factor ~ a * t + b.
+    Align an arc coordinate t in [0, 1] to the ground-truth factor by the best fit a * t + b.
 
-    Returns the coefficients "a"/"b", the (N,) unsigned residual "error" in the
-    factor's units and the two conversions "factor_of_t" / "t_of_factor".
+    Returns the coefficients "a" and "b", the (N,) unsigned residual "error" in the factor's own
+    units and the two conversions "factor_of_t" and "t_of_factor".
     """
     t = np.asarray(t, dtype=float)
     y = np.asarray(factor, dtype=float)

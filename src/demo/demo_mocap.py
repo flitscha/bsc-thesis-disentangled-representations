@@ -1,3 +1,12 @@
+"""
+The "Motion Capture" tab, the front end of the mocap experiment.
+
+The only tab whose observations are poses rather than images, so data frames and reconstructions
+are drawn as stick figures. "Run evaluation" calls the same 'experiments.mocap_eval.run_evaluation'
+the standalone script uses. Everything not specific to the motions is inherited from
+demo.demo_tab.ManifoldDemoTab.
+"""
+
 import sys
 import os
 
@@ -15,7 +24,7 @@ from experiments.mocap_eval import (
 )
 from demo.demo_tab import ManifoldDemoTab, _CYAN, _GREY, _RED
 
-# The verified configuration of the thesis experiment.
+# the configuration the stored results were produced with
 PRESET_MOTIONS = ("walk", "run", "wave", "sit_down")
 
 
@@ -50,17 +59,15 @@ class MocapDemoTab(ManifoldDemoTab):
         super().__init__()
         self.pose_mean = None
         self.pose_std = None
-        self.values = None        # ground-truth progress per frame, in percent
-        self.colors = None        # progress in [0, 1], for colouring
-        self.captions = None      # formatted progress per frame
-        self.component_gt = None  # which spec (motion) a frame comes from
+        self.values = None # ground-truth progress per frame, in percent
+        self.colors = None # progress in [0, 1], for colouring
+        self.captions = None # formatted progress per frame
+        self.component_gt = None # which spec (motion) a frame comes from
         self.meta = None
         self.row_include = {}
         self.row_samples = {}
 
-    # ------------------------------------------------------------------
-    # settings panel
-    # ------------------------------------------------------------------
+    # --- settings panel ---
     def _build_data_section(self):
         dpg.add_text("Data (motions of one person)", color=_CYAN)
         dpg.add_separator()
@@ -112,7 +119,7 @@ class MocapDemoTab(ManifoldDemoTab):
         )
 
     def _preset_motions(self):
-        """The configuration of the thesis experiment: two loops and two arcs."""
+        """The configuration of the stored results: two loops and two arcs."""
         for row, motion in enumerate(MOTIONS):
             dpg.set_value(self.row_include[row], motion["name"] in PRESET_MOTIONS)
             dpg.set_value(self.row_samples[row], 100)
@@ -126,9 +133,7 @@ class MocapDemoTab(ManifoldDemoTab):
         dpg.set_value(self.h1_factor_in, 0.0)
         dpg.set_value(self.interp_w_in, 3.0)
 
-    # ------------------------------------------------------------------
-    # data
-    # ------------------------------------------------------------------
+    # --- data ---
     def _current_specs(self):
         """Read the per-motion table into a list of dataset specs."""
         return [{"motion": motion["name"],
@@ -149,7 +154,7 @@ class MocapDemoTab(ManifoldDemoTab):
             self._status(self.data_lbl, f"{exc}", _RED)
             return None
 
-        self.colors = self.values / 100.0  # colour by progress in the repetition
+        self.colors = self.values / 100.0 # colour by progress in the repetition
         self.captions = [f"{self.meta[i]['motion']} {_format_value(v)}"
                          for v, i in zip(self.values, self.component_gt)]
 
@@ -157,9 +162,7 @@ class MocapDemoTab(ManifoldDemoTab):
         return (f"{len(self.X)} poses from {len(specs)} motion(s): "
                 f"{self.data_label}.")
 
-    # ------------------------------------------------------------------
-    # detection and evaluation
-    # ------------------------------------------------------------------
+    # --- detection and evaluation ---
     def _member_ids(self):
         return self.component_gt
 
@@ -181,9 +184,7 @@ class MocapDemoTab(ManifoldDemoTab):
         )
         return out_dir
 
-    # ------------------------------------------------------------------
-    # rendering
-    # ------------------------------------------------------------------
+    # --- rendering ---
     def _extra_plot_state(self):
         return {
             "cmap": "viridis",
@@ -208,3 +209,4 @@ class MocapDemoTab(ManifoldDemoTab):
         elif mode == "persistence":
             render_persistence_frame(fig, self.diagram, self.curves,
                                      self.selected_component)
+

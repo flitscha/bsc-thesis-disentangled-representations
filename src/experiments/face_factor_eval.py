@@ -1,15 +1,14 @@
 """
-Face experiment: several faces, each varying a different generative factor.
+Several rendered faces, each varying a different generative factor.
 
-Every face is a different identity of the ICT morphable face model, sweeping one
-factor over its full range: one head turns (yaw in degrees), another smiles,
-another opens its jaw. The identities are far apart in pixel space and never
-meet, so each face is a separate connected component and, since no factor closes,
-an open arc.
+Every face is a different identity of the ICT morphable face model and sweeps one factor over its
+full range: one head turns, another smiles, another opens its jaw. The identities sit far apart in
+pixel space and never meet, so every face is a separate connected component. No factor closes, so
+every component is an open arc.
 
-    M1  topology      expected vs. detected components and per-component type
-    M2  factor error  per component, in its own unit (degrees or units)
-    M4  ARI           agreement of detected components with the face labels
+    M1  topology      expected against detected components, and the type of each
+    M2  factor error  per component, in that factor's own unit
+    M4  ARI           how well the detected components agree with the face labels
 
 Results are written to results/faces/<tag>/.
 """
@@ -44,29 +43,26 @@ def _face_name(spec):
 
 
 def _format_value(value, unit):
-    """Column caption for a factor value: degrees stay integral, units get 2 dp."""
+    """Column caption for a factor value. Degrees stay whole, blendshape units get two decimals."""
     return f"{value:.0f}°" if unit == "deg" else f"{value:.2f}"
 
 
 def _spec_tag(specs):
-    """Compact filename tag like 'Ayaw_Bsmile_Cjaw_open'."""
+    """Compact folder name describing the setup, such as 'Ayaw_Bsmile_Cjaw_open'."""
     return "_".join(f"{_face_name(s)}{s['factor']}" for s in specs)
 
 
 def _spec_label(spec):
-    """Human-readable name of a component, e.g. 'face A: yaw'."""
+    """Readable name of a component, such as 'face A: yaw'."""
     return f"face {_face_name(spec)}: {spec['factor']}"
 
 
 def _match_specs_to_curves(cid, component_gt, curves, specs):
     """
-    Assign expected faces to detected curves one-to-one, maximising the total
-    ground-truth overlap.
-    A curve backs at most one face, a pair with zero overlap is never assigned,
-    and every curve nobody claims is 'extra' (spurious).
+    Assign the expected faces to the detected curves one to one, maximising the total overlap.
 
-    Returns (matches, extra_curve_ids) with each match
-        {spec, face, factor, span, curve (int|None), n_overlap}.
+    A curve backs at most one face and a pair with zero overlap is never assigned, so every curve
+    that nobody claims comes back as an extra one.
     """
     valid = [j for j, c in enumerate(curves) if c.get("spline") is not None]
     overlap = np.zeros((len(specs), len(valid)), dtype=int)
@@ -97,10 +93,10 @@ def _match_specs_to_curves(cid, component_gt, curves, specs):
 
 def _per_curve_factor_errors(t, cid, values, component_gt, curves, specs):
     """
-    Per detected curve: align its coordinate to the true factor of its majority
-    face (affine, so only offset and scale are quotiented out) and report the residual
-    in that face's unit.
-    A curve that merged two faces shows up as a low purity together with a large error.
+    Align each detected curve to the true factor of its majority face and report the residual.
+
+    The alignment is affine, so only offset and scale are fitted out, and the residual is in that
+    face's own unit. A curve that merged two faces shows up as a low purity with a large error.
     """
     out = []
     for j, curve in enumerate(curves):
@@ -127,12 +123,11 @@ def _per_curve_factor_errors(t, cid, values, component_gt, curves, specs):
 
 def _ground_truth_strip(pipe, curve, match, cid, values, t, component_gt, X, n_frames=5):
     """
-    One strip for a matched (face, curve) pair.
+    Build one strip for a matched (face, curve) pair.
 
-    Top row: that face's own input frames, taken at the ground-truth values
-    closest to an evenly spaced grid over its factor range.
-    Bottom row: the matched curve reconstructed at the coordinate that aligns to
-    the same grid with the affine t <-> factor map fitted on this face's members of the curve.
+    The top row holds that face's own input frames, at the ground-truth values closest to an
+    evenly spaced grid over its factor range. The bottom row is the matched curve, reconstructed
+    at the coordinate that aligns to the same grid.
     """
     i = match["spec"]
     grid = np.linspace(match["span"][0], match["span"][1], n_frames)
@@ -148,7 +143,7 @@ def _ground_truth_strip(pipe, curve, match, cid, values, t, component_gt, X, n_f
 
 
 def _reconstruct_along(pipe, curve, n):
-    """n reconstructions evenly along a curve."""
+    """n reconstructions spread evenly along a curve."""
     t_grid = np.linspace(0.0, 1.0, n, endpoint=curve["type"] != "loop")
     return pipe.reconstruct(np.asarray(curve["spline"](t_grid)))
 
@@ -162,14 +157,13 @@ def run_evaluation(
     """
     Run the face evaluation for one configuration and save it.
 
-    The defaults are the configuration of the run reported in the thesis
-    (`results/faces/Ayaw_Bsmile_Cjaw_open_seed0/`).
+    The defaults reproduce the stored run in `results/faces/Ayaw_Bsmile_Cjaw_open_seed0/`.
 
-    `h0_persistence_factor` / `h1_persistence_factor` > 0 replace the automatic
-    rules of §5.6 by an explicit threshold at that multiple of the median H0
-    merge scale; 0 keeps the automatic rule.
+    A positive `h0_persistence_factor` or `h1_persistence_factor` replaces the automatic detection
+    rule by an explicit threshold at that multiple of the median H0 merge scale; 0 keeps the
+    automatic rule.
 
-    Returns (summary_dict, run_dir).
+    Returns the summary dict and the directory it was written to.
     """
     def say(msg):
         if progress is not None:
@@ -205,14 +199,14 @@ def run_evaluation(
     pipe.detect()
     pipe.apply_persistence_thresholds(h0_persistence_factor, h1_persistence_factor)
     t, cid = pipe.transform(X)
-    comp_id = component_labels(pipe, X) # H0 component per observation
+    comp_id = component_labels(pipe, X) # the detected component of every observation
 
     matches, extra_curve_ids = _match_specs_to_curves(
         cid, component_gt, pipe.curves_, specs)
 
     m1 = topology_report(pipe.structure_, expected_n, expected_types,
                          component_labels=comp_id)
-    m4 = discrete_ari(comp_id, component_gt) # H0 components vs. faces
+    m4 = discrete_ari(comp_id, component_gt) # detected components against the true faces
     per_curve = _per_curve_factor_errors(t, cid, values, component_gt,
                                          pipe.curves_, specs)
 
@@ -263,7 +257,7 @@ def run_evaluation(
         def to_image(v):
             return np.clip(np.asarray(v) * pstd + pmean, 0.0, 1.0).reshape(image_shape)
 
-        # one strip per matched face: its own frames over the model curve
+        # one strip per matched face: its own frames above the model curve
         correct = []
         for m in matches:
             j = m["curve"]
@@ -278,7 +272,7 @@ def run_evaluation(
                 "true_imgs": top, "recon_imgs": recon,
             })
 
-        # curves no face claimed: model-only rows, numbered
+        # the curves no face claimed become model-only rows
         extra = [(f"extra {k}", _reconstruct_along(pipe, pipe.curves_[j], 5), None)
                  for k, j in enumerate(extra_curve_ids, start=1)]
 
@@ -309,7 +303,7 @@ def run_evaluation(
 
 
 def _format_summary(summary):
-    """Compact human-readable one-block summary for logging / a status label."""
+    """Compact readable summary for logging or a status label."""
     m = summary["metrics"]
     topo = m["topology"]
     lines = [

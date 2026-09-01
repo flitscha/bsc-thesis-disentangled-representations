@@ -1,3 +1,10 @@
+"""
+The demo application: one window holding all six tabs.
+
+The first three tabs walk through the method on toy data, from the MFA over the traversal baseline
+to TDA. The last three are the front ends of the experiments on real data.
+"""
+
 import dearpygui.dearpygui as dpg
 
 from demo.demo_mnist import MNISTDemoTab

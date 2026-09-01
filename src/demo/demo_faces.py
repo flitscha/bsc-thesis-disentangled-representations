@@ -1,3 +1,11 @@
+"""
+The "Faces" tab, the front end of the rendered-faces experiment.
+
+The table picks one face and one generative factor per component. "Run evaluation" calls the same
+'experiments.face_factor_eval.run_evaluation' the standalone script uses. Everything not specific
+to the faces is inherited from demo.demo_tab.ManifoldDemoTab.
+"""
+
 import sys
 import os
 
@@ -18,7 +26,7 @@ from experiments.face_factor_eval import (
 )
 from demo.demo_tab import ManifoldDemoTab, _CYAN, _GREY
 
-# One table row per face of the catalogue; the preset fills the first three.
+# one table row per face of the catalogue, of which the preset fills the first three
 PRESET_FACTORS = ("yaw", "smile", "jaw_open")
 DEFAULT_FACTORS = ("yaw", "smile", "jaw_open", "brow_raise", "pucker", "blink")
 
@@ -46,20 +54,18 @@ class FacesDemoTab(ManifoldDemoTab):
         super().__init__()
         self.pixel_mean = None
         self.pixel_std = None
-        self.values = None        # ground-truth factor value per frame
-        self.colors = None        # position within its own sweep, in [0, 1]
-        self.captions = None      # formatted factor value per frame
-        self.component_gt = None  # which spec (face) a frame comes from
+        self.values = None # ground-truth factor value per frame
+        self.colors = None # position within its own sweep, in [0, 1]
+        self.captions = None # formatted factor value per frame
+        self.component_gt = None # which spec (face) a frame comes from
         self.meta = None
         self.renderer = None
-        self.image_shape = None   # resolution the current data was rendered at
+        self.image_shape = None # resolution the current data was rendered at
         self.row_include = {}
         self.row_factor = {}
         self.row_samples = {}
 
-    # ------------------------------------------------------------------
-    # settings panel
-    # ------------------------------------------------------------------
+    # --- settings panel ---
     def _build_data_section(self):
         dpg.add_text("Data (faces and their factor)", color=_CYAN)
         dpg.add_separator()
@@ -107,7 +113,7 @@ class FacesDemoTab(ManifoldDemoTab):
         )
 
     def _preset_three_faces(self):
-        """The configuration of the thesis experiment: three faces, three factors."""
+        """The configuration of the stored results: three faces, one factor each."""
         for row in range(len(FACES)):
             use = row < len(PRESET_FACTORS)
             factor = PRESET_FACTORS[row] if use else DEFAULT_FACTORS[row]
@@ -125,9 +131,7 @@ class FacesDemoTab(ManifoldDemoTab):
         dpg.set_value(self.h1_factor_in, 0.0)
         dpg.set_value(self.interp_w_in, 3.0)
 
-    # ------------------------------------------------------------------
-    # data
-    # ------------------------------------------------------------------
+    # --- data ---
     def _current_specs(self):
         """Read the per-face table into a list of dataset specs."""
         return [{"face": row,
@@ -165,9 +169,7 @@ class FacesDemoTab(ManifoldDemoTab):
         return (f"{len(self.X)} frames from {len(specs)} face(s): "
                 f"{self.data_label}.")
 
-    # ------------------------------------------------------------------
-    # detection and evaluation
-    # ------------------------------------------------------------------
+    # --- detection and evaluation ---
     def _member_ids(self):
         return self.component_gt
 
@@ -197,9 +199,7 @@ class FacesDemoTab(ManifoldDemoTab):
         )
         return out_dir
 
-    # ------------------------------------------------------------------
-    # rendering
-    # ------------------------------------------------------------------
+    # --- rendering ---
     def _extra_plot_state(self):
         return {
             "cmap": "viridis",
@@ -224,3 +224,4 @@ class FacesDemoTab(ManifoldDemoTab):
         elif mode == "persistence":
             render_persistence_frame(fig, self.diagram, self.curves,
                                      self.selected_component)
+

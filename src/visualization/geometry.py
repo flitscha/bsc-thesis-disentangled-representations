@@ -1,46 +1,44 @@
 """
-Geometric building blocks:
-Drawing of individual Gaussian components (ellipse/ellipsoid/line/plane)
+Drawing of single Gaussian components as an ellipse, ellipsoid, line or plane.
 """
 
 import numpy as np
 from matplotlib.patches import Ellipse
 
 
-# --------------------------- Plot space ---------------------------
+# --- plot space ---
 def plot_transform(pre, projection, ambient_dim):
     """
-    Affine map (M, b) from the space a fitted model lives in to the plotted one,
-    so that model_point @ M + b can be drawn next to the observations.
+    The affine map (M, b) from the space the fitted model lives in to the plotted one.
 
-    The model is fitted on the preprocessed data: with PCA switched on its means
-    and covariances live in the reduced space, while the data and the embedding
-    map are ambient. Two steps therefore have to be undone before plotting:
+    A model point can then be drawn next to the observations as model_point @ M + b. The model is
+    fitted on the preprocessed data, so with PCA switched on its means and covariances live in the
+    reduced space while the data and the embedding map are ambient. Two steps have to be undone:
 
-        reduced --(pre.inverse_transform)--> ambient --(projection)--> plotted
+        reduced -> ambient, via pre.inverse_transform, then ambient -> plotted, via the projection
 
-    'pre' is the fitted PCARotation or None, 'projection' the (D, d) map back to
-    the intrinsic coordinates of an embedded dataset (None if not embedded) and
-    'ambient_dim' the observation dimension. A covariance maps as M.T @ cov @ M.
+    'pre' is the fitted PCARotation or None, 'projection' is the (D, d) map back to the intrinsic
+    coordinates of an embedded dataset, and 'ambient_dim' is the observation dimension. A
+    covariance maps as M.T @ cov @ M.
     """
     if pre is None:
         M = np.eye(ambient_dim) if projection is None else np.asarray(projection)
         return M, np.zeros(M.shape[1])
 
-    M = pre.components_.T  # reduced -> ambient
+    M = pre.components_.T # reduced -> ambient
     b = pre.mean_
     if projection is not None:
         M, b = M @ projection, b @ projection
     return M, b
 
 
-# --------------------------- Axis Limits ---------------------------
+# --- axis limits ---
 def set_axis_limits(ax, points, padding=0.1, adjustable=None):
     """
-    Set axis limits and an equal aspect ratio from the (N, D) points, D in {2, 3}.
+    Set the axis limits and an equal aspect ratio from the (N, D) points, for D of 2 or 3.
 
-    'padding' is a scalar or one value per dimension; 'adjustable' is passed
-    through to ax.set_aspect().
+    'padding' is either a scalar or one value per dimension. 'adjustable' goes straight through to
+    ax.set_aspect().
     """
     D = points.shape[1]
     mins = points.min(axis=0)
@@ -78,7 +76,7 @@ def plot_ellipse(ax, mean, cov, prior=None, color="orange"):
 
 
 def plot_line(ax, mean, cov, prior=None, length=None, color="orange", linewidth=3.0, alpha=None):
-    """Line along the major axis (largest eigenvector) of a Gaussian component."""
+    """A line along the major axis of a Gaussian component, its largest eigenvector."""
     D = mean.shape[0]
     vals, vecs = np.linalg.eigh(cov)
     direction = vecs[:, np.argmax(vals)]
@@ -98,7 +96,7 @@ def plot_line(ax, mean, cov, prior=None, length=None, color="orange", linewidth=
 
 
 def plot_ellipsoid(ax, mean, cov, prior=None, resolution=20, color="orange", alpha=0.2):
-    """3D ellipsoid of a Gaussian component (`prior` is currently not used for visibility)"""
+    """The 3D ellipsoid of a Gaussian component. `prior` does not affect the drawing yet."""
     vals, vecs = np.linalg.eigh(cov)
     vals = np.clip(vals, 1e-10, None)
     radii = 2.0 * np.sqrt(vals)
@@ -124,7 +122,7 @@ def plot_ellipsoid(ax, mean, cov, prior=None, resolution=20, color="orange", alp
 
 
 def plot_plane(ax, mean, cov, prior=None, size=3.0, color="orange", alpha=0.2):
-    """3D plane spanned by the two principal axes of a Gaussian component."""
+    """The plane spanned by the two principal axes of a Gaussian component."""
     vals, vecs = np.linalg.eigh(cov)
     idx = np.argsort(vals)[::-1]
     vec1 = vecs[:, idx[0]] * size
@@ -146,7 +144,7 @@ def _none_plotter(ax, mean, cov, prior=None):
     return None
 
 
-# --------------------------- Dispatch ---------------------------
+# --- dispatch ---
 _COMPONENT_PLOTTERS = {
     2: {
         "ellipsoid": plot_ellipse,

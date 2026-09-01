@@ -1,5 +1,9 @@
 """
-Tab 1: Synthetic Explorer
+The "Synthetic Data" tab: the MFA as a local geometry learner.
+
+Fits an MFA to a toy manifold, which can be embedded into a higher-dimensional space first, and
+draws the fitted components as ellipses or ellipsoids over the data. No structure detection
+happens here. The tab is only about what the density model on its own already sees.
 """
 
 import sys
@@ -23,10 +27,10 @@ from visualization.gmm import visualize_gmm
 
 DPI = 100
 
-# Bounds for resolution of plot (the resolution changes dynamicaly depending on the window size)
+# bounds on the plot resolution, which follows the window size
 MIN_TEX = 250
 MAX_TEX = 1600
-RESIZE_THRESHOLD = 25 # avoid rerendering spam during window-resizing
+RESIZE_THRESHOLD = 25 # do not re-render on every pixel while the window is being resized
 
 ROTATE_SENSITIVITY = 0.4
 
@@ -65,7 +69,7 @@ class SyntheticDemoTab:
 
         self._register_mouse_handlers()
 
-    # ------------------ Setup: Settings ---------------------------
+    # --- setup: settings ---
     def _build_settings_panel(self):
         _width = 150
         with dpg.child_window(width=400, autosize_y=True):
@@ -124,7 +128,7 @@ class SyntheticDemoTab:
             self.status_text = dpg.add_text("No training has been conducted yet.")
 
 
-    # -------------------- Setup: Plot-Panel + Textur -----------------------
+    # --- setup: plot panel and texture ---
     def _build_plot_panel(self):
         self.texture_tag = f"{self._texture_tag_base}_{self._texture_counter}"
         self._texture_counter += 1
@@ -175,7 +179,7 @@ class SyntheticDemoTab:
         self._update_plot()
 
 
-    # ------------ mouse dragging for 3d plots --------------------
+    # --- mouse dragging for 3d plots ---
     def _is_3d(self):
         return dpg.get_value(self.data_type) in ("swiss_roll", "torus", "curve_in_3d")
 
@@ -209,7 +213,7 @@ class SyntheticDemoTab:
         self.elev = float(np.clip(self.elev + dy * ROTATE_SENSITIVITY, -89.0, 89.0))
 
         current_time = time.time()
-        if current_time - self._last_render_time > 0.033:  
+        if current_time - self._last_render_time > 0.033:
             self._last_render_time = current_time
             self._update_plot()
 
@@ -253,7 +257,7 @@ class SyntheticDemoTab:
         self._update_plot()
 
 
-    # ------------------- Plotting ------------------------
+    # --- plotting ---
     def _update_plot(self):
         if self.pipe is None:
             return

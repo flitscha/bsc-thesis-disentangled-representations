@@ -1,24 +1,23 @@
 """
-High-level manifold-learning pipeline (§5.2-§5.7).
+The manifold learning pipeline: PCA, MFA, distance matrix, structure detection, splines.
 
-'ManifoldPipeline' wraps all pipeline steps behind one object operating on a
-plain numpy array, usable independently of the demos. Either run whole stages
-(fit / detect / fit_detect) or one step at a time (preprocess, fit_model,
-distance_matrix, detect_structure, interpolate), where each step enriches the
-object with its artifacts.
+'ManifoldPipeline' puts all steps behind one object that works on a plain numpy array, so it can
+be used without the demos. Run whole stages (fit / detect / fit_detect) or one step at a time
+(preprocess, fit_model, distance_matrix, detect_structure, interpolate). Every step stores its
+result on the object.
 
-Hyperparameters stay mutable via set_params and are grouped by the step they
-feed; changing one means re-running from that step onward:
+Hyperparameters stay mutable via set_params. They are grouped by the step they feed, and changing
+one means re-running from that step onward:
 
-    pca_dim                                    -> preprocess()      §5.2
-    n_components, latent_dim, cov_type, shared -> fit_model()       §5.3
-    lambda_aniso, n_neighbors                  -> distance_matrix() §5.4
-    detection, TDA thresholds, `closed`        -> detect_structure()§5.5/6
-    interp_tangent_weight                      -> interpolate()     §5.7
+    pca_dim                                    -> preprocess()
+    n_components, latent_dim, cov_type, shared -> fit_model()
+    lambda_aniso, n_neighbors                  -> distance_matrix()
+    detection, TDA thresholds, `closed`        -> detect_structure()
+    interp_tangent_weight                      -> interpolate()
     seed                                       -> full re-fit
 
-detect() re-runs its whole stage, so a fitted model can be re-detected with new
-distance or detection parameters without an expensive re-fit.
+detect() re-runs its whole stage, so a fitted model can be re-detected with new distance or
+detection parameters without paying for another fit.
 """
 
 import numpy as np
@@ -62,33 +61,31 @@ class ManifoldPipeline:
         self.cov_type = cov_type
         self.shared = shared
 
-        self.lambda_aniso = lambda_aniso   # off-manifold penalty of the local metric
-        self.n_neighbors = n_neighbors     # neighbors of the geodesic graph
+        self.lambda_aniso = lambda_aniso # off-manifold penalty of the local metric
+        self.n_neighbors = n_neighbors # neighbors of the geodesic graph
 
-        self.interp_tangent_weight = interp_tangent_weight  # chart-tangent alignment strength
+        self.interp_tangent_weight = interp_tangent_weight # chart-tangent alignment strength
 
         self.detection = detection
-        # TDA thresholds (min_persistence_h0/h1, component_gap_factor_h0,
-        # prominence_ratio_h1) or the traversal baseline's `closed` override
+        # TDA thresholds (min_persistence_h0/h1, component_gap_factor_h0, prominence_ratio_h1),
+        # or the traversal baseline's `closed` override
         self.detect_kwargs = dict(detect_kwargs)
 
         self.seed = seed
 
-        # --- fitted artifacts ---
-        self.pre = None          # PCARotation, or None if pca_dim is None
-        self.model = None        # fitted MFA model
-        self.tangents = None     # (C, D, latent_dim) orthonormal tangent frames
-        self.variances = None    # (C, latent_dim) captured variance per direction
-        self.noise_ = None       # (C,) mean off-manifold noise variance
-        self.obj = None          # final training objective
-        self.kept_ = None        # original indices of the charts kept after pruning
-        self.distances_ = None   # (M, M) distance matrix over the kept charts
-        self.structure_ = None   # raw detection result (index orders)
-        self.curves_ = None      # detected curves (with splines after interpolate)
+        # fitted artifacts
+        self.pre = None # PCARotation, or None if pca_dim is None
+        self.model = None # fitted MFA model
+        self.tangents = None # (C, D, latent_dim) orthonormal tangent frames
+        self.variances = None # (C, latent_dim) captured variance per direction
+        self.noise_ = None # (C,) mean off-manifold noise variance
+        self.obj = None # final training objective
+        self.kept_ = None # original indices of the charts kept after pruning
+        self.distances_ = None # (M, M) distance matrix over the kept charts
+        self.structure_ = None # raw detection result (index orders)
+        self.curves_ = None # detected curves (with splines after interpolate)
 
-    # ------------------------------------------------------------------
-    # parameter access
-    # ------------------------------------------------------------------
+    # --- parameter access ---
     def get_params(self):
         """Return all hyperparameters as a flat dict (for logging / saving)."""
         params = {k: getattr(self, k) for k in self._PARAMS}
@@ -104,9 +101,7 @@ class ManifoldPipeline:
                 self.detect_kwargs[key] = value
         return self
 
-    # ------------------------------------------------------------------
-    # §5.2 preprocessing
-    # ------------------------------------------------------------------
+    # --- preprocessing ---
     def preprocess(self, X):
         """Apply PCA + random orthogonal transform; return the reduced data."""
         X = np.asarray(X)
@@ -116,9 +111,7 @@ class ManifoldPipeline:
         self.pre = None
         return X
 
-    # ------------------------------------------------------------------
-    # §5.3 MFA as local geometry learner
-    # ------------------------------------------------------------------
+    # --- fitting the MFA ---
     def fit_model(self, X):
         """Fit the MFA on (already preprocessed) data and extract tangent frames."""
         self.model, self.obj = fit_mfa(
@@ -137,14 +130,13 @@ class ManifoldPipeline:
         """Convenience: preprocess(X) followed by fit_model()."""
         return self.fit_model(self.preprocess(X))
 
-    # ------------------------------------------------------------------
-    # §5.4 distance matrix
-    # ------------------------------------------------------------------
+    # --- distance matrix ---
     def distance_matrix(self):
-        """Build and cache the geometry-aware distance matrix between components.
+        """
+        Build and cache the geometry-aware distance matrix between the components.
 
-        Near-empty charts (negligible mixing weight pi_k) are pruned first, so
-        they cannot create shortcut edges or spurious topology.
+        Charts with a negligible mixing weight are pruned first. They hold almost no data, so
+        their tangent estimate is unreliable and they could add shortcut edges or fake topology.
         """
         if self.model is None:
             raise RuntimeError("call fit() before distance_matrix().")
@@ -155,15 +147,13 @@ class ManifoldPipeline:
         )
         return self.distances_
 
-    # ------------------------------------------------------------------
-    # §5.5 / §5.6 structure detection (index orders, no splines)
-    # ------------------------------------------------------------------
+    # --- structure detection (index orders, no splines yet) ---
     def detect_structure(self, **overrides):
         """
-        Detect components / loops from the distance matrix (builds it if needed).
+        Detect components and loops from the distance matrix, building it first if needed.
 
-        Dispatches on `self.detection`: "tda" (persistent homology, the standard)
-        or "traversal" (naive k-NN graph baseline).
+        `self.detection` picks the detector: "tda" (persistent homology) or "traversal" (the
+        simpler baseline that assumes a single structure).
         """
         if self.model is None:
             raise RuntimeError("call fit() before detect_structure().")
@@ -172,7 +162,7 @@ class ManifoldPipeline:
 
         if self.detection == "tda":
             kwargs = {**self.detect_kwargs, **overrides}
-            kwargs.pop("closed", None)  # traversal-only override, not a TDA param
+            kwargs.pop("closed", None) # traversal-only override, not a TDA param
             self.structure_ = detect_tda(self.distances_, **kwargs)
         elif self.detection == "traversal":
             closed = {**self.detect_kwargs, **overrides}.get("closed")
@@ -186,40 +176,37 @@ class ManifoldPipeline:
         return self.structure_
 
     def _lift_indices_to_original(self):
-        """
-        Map detection indices back to the original component indices via 'self.kept_'
-        """
+        """Map detection indices back to the original component indices, undoing the pruning."""
         kept = self.kept_
         N = self.model.means.shape[0]
 
         for curve in self.structure_["curves"]:
             curve["order"] = [int(kept[i]) for i in curve["order"]]
 
-        # per-node component labels: scatter back to full length, -1 = pruned
+        # per-node component labels: scatter back to full length, -1 marks a pruned chart
         if "components" in self.structure_:
             full = np.full(N, -1, dtype=int)
             full[kept] = self.structure_["components"]
             self.structure_["components"] = full
 
-        # traversal baseline exposes a k-NN graph whose edges are node indices
+        # the traversal baseline also exposes its graph, whose edges are node indices
         graph = self.structure_.get("graph")
         if graph is not None and "edges" in graph:
             graph["edges"] = [(int(kept[i]), int(kept[j])) for i, j in graph["edges"]]
 
     def apply_persistence_thresholds(self, h0_factor=0.0, h1_factor=0.0):
         """
-        Re-detect with explicit H0/H1 persistence thresholds and re-interpolate.
+        Re-detect with explicit H0/H1 persistence thresholds, then re-interpolate.
 
-        Both factors are multiples of the barcode's median H0 merge scale, which
-        keeps them free of the data scale but is only known once a detection has
-        run: call this after detect() / detect_structure(). A factor of 0 keeps
-        the automatic rule of §5.6 for that dimension, and if both are 0 this is
-        a no-op (no re-detection at all).
+        Both factors are multiples of the barcode's median H0 merge scale. That keeps them
+        independent of the data scale, but it is only known once a detection has run, so call this
+        after detect(). A factor of 0 keeps the automatic rule for that dimension; if both are 0
+        nothing happens at all.
         """
         if self.structure_ is None:
             raise RuntimeError("call detect_structure() before applying thresholds.")
 
-        diagram = self.structure_.get("diagram") # only the TDA branch has one
+        diagram = self.structure_.get("diagram") # only the TDA branch produces one
         if diagram is None:
             return self
 
@@ -232,15 +219,13 @@ class ManifoldPipeline:
         self.interpolate()
         return self
 
-    # ------------------------------------------------------------------
-    # §5.7 interpolation
-    # ------------------------------------------------------------------
+    # --- interpolation ---
     def interpolate(self):
-        """Attach smooth curves to the detected structures.
+        """
+        Attach a smooth curve to every detected structure.
 
-        The curve interpolates the component means exactly (Hermite spline); its
-        knot tangents are softly aligned with the MFA chart tangents, weighted by
-        the mixing weight pi_k (low-pi_k charts barely pull). See core.interpolation.
+        The Hermite spline passes through the component means exactly. Its knot tangents are only
+        pulled towards the chart tangents, and the weaker the chart, the less it pulls.
         """
         if self.curves_ is None:
             raise RuntimeError("call detect_structure() before interpolate().")
@@ -251,14 +236,12 @@ class ManifoldPipeline:
         )
         return self.curves_
 
-    # ------------------------------------------------------------------
-    # convenience: full detection (§5.4 -> §5.7)
-    # ------------------------------------------------------------------
+    # --- running several steps at once ---
     def detect(self, **overrides):
         """
-        Run the full detection: distance matrix, structure detection, and spline
-        interpolation. Rebuilds the distance matrix so changed detection
-        parameters take effect. Returns a unified result dict.
+        Run distance matrix, structure detection and interpolation in one go.
+
+        The distance matrix is always rebuilt, so changed parameters take effect.
         """
         if self.model is None:
             raise RuntimeError("call fit() before detect().")
@@ -273,10 +256,10 @@ class ManifoldPipeline:
 
     def result(self):
         """
-        Assemble a unified result dict from the current detection artifacts.
+        Collect the current detection artifacts into one result dict.
 
-        What detect() returns, but callable again after the artifacts changed
-        (e.g. after apply_persistence_thresholds) without re-running detection.
+        Same thing detect() returns, but callable again after the artifacts changed, for instance
+        after apply_persistence_thresholds, without detecting anew.
         """
         result = dict(self.structure_)
         result["curves"] = self.curves_
@@ -289,28 +272,23 @@ class ManifoldPipeline:
             result["loops"] = [c for c in self.curves_ if c["type"] == "loop"]
         return result
 
-    # ------------------------------------------------------------------
-    # reconstruct: map reduced-space points back to the ambient space
-    # ------------------------------------------------------------------
+    # --- decoder and encoder ---
     def reconstruct(self, points):
         """Back-project points from the reduced (PCA+rotation) space to ambient."""
         if self.pre is None:
             return np.asarray(points)
         return self.pre.inverse_transform(points)
 
-    # ------------------------------------------------------------------
-    # encode: map observations onto the learned 1D coordinate (f: X -> Z)
-    # ------------------------------------------------------------------
     def transform(self, X, n_samples=512):
         """
-        Encode (N, D0) observations into the learned 1D coordinate: the map f: X -> Z.
+        The encoder: map (N, D0) observations onto the learned 1D coordinate.
 
-        Each observation is projected onto the nearest detected curve, found by
-        sampling every spline at 'n_samples' points. Label-free, so it stays part
-        of the unsupervised model; ground-truth alignment happens at evaluation.
+        Each observation is assigned to the curve running closest to it, found by sampling every
+        spline at 'n_samples' points. No labels are involved, so this stays part of the
+        unsupervised model.
 
-        Returns t in [0, 1] (in [0, 1) for periodic loops) and the index into
-        self.curves_ of the assigned curve.
+        Returns the coordinate t in [0, 1], or in [0, 1) on a loop, and the index of the assigned
+        curve in self.curves_.
         """
         if self.curves_ is None:
             raise RuntimeError("call detect() before transform().")
@@ -326,10 +304,10 @@ class ManifoldPipeline:
             spline = curve.get("spline")
             if spline is None:
                 continue
-            endpoint = curve.get("type") != "loop"  # loops close, so t=1 duplicates t=0
+            endpoint = curve.get("type") != "loop" # on a loop t=1 is the same point as t=0
             ts = np.linspace(0.0, 1.0, n_samples, endpoint=endpoint)
             pts = np.asarray(spline(ts)) # (n_samples, D)
-            # squared distances (N, n_samples): |z|^2 + |p|^2 - 2 z.p
+            # squared distances (N, n_samples), expanded as |z|^2 + |p|^2 - 2 z.p
             d2 = z2 + np.sum(pts * pts, axis=1)[None, :] - 2.0 * (Z @ pts.T)
             j = np.argmin(d2, axis=1)
             dmin = d2[np.arange(N), j]

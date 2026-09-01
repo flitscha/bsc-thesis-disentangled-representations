@@ -1,12 +1,15 @@
 """
-Experiment 1: rotating MNIST digit (a single rotation loop).
+A single rotating MNIST digit, which forms one rotation loop.
+
+The only experiment with just one structure, which is why it is also the only one that compares
+the TDA detector against the MST baseline and reports the reconstruction decomposition M3.
 
 One call crosses two axes and therefore produces 2x2 = 4 runs:
 
-    mode      : "capacity"  (clean input, self-reconstruction)
+    mode      : "capacity"  (clean input, reconstructed against itself)
                 "denoising" (noisy input, clean target)
-    detection : "tda"       (persistent homology, §5.6)
-                "traversal" (MST-diameter baseline, §5.5)
+    detection : "tda"       (persistent homology)
+                "traversal" (the MST-diameter baseline)
 
 Each run is saved under results/mnist_rotation/<tag>/<mode>_<method>/.
 """
@@ -19,14 +22,14 @@ from data.mnist_rotation import make_rotation_dataset
 from core.pipeline import ManifoldPipeline
 from experiments.eval import evaluate_run, persistence_tag
 
-IMAGE_SHAPE = (30, 30) # rotated frames are 30x30 = 900 px (see mnist_rotation)
+IMAGE_SHAPE = (30, 30) # the rotated frames are 30x30 = 900 px, see data/mnist_rotation.py
 
 
 def _make_pipeline(
     *, n_components, pca_dim, latent_dim, lambda_aniso,
     n_neighbors, interp_tangent_weight, seed
 ):
-    """A pipeline configured for the rotation loop (detection set per run)."""
+    """A pipeline configured for the rotation loop. The detector is set per run."""
     return ManifoldPipeline(
         n_components=n_components, latent_dim=latent_dim, cov_type="mfa",
         shared=False, pca_dim=pca_dim if pca_dim and pca_dim > 0 else None,
@@ -36,7 +39,7 @@ def _make_pipeline(
 
 
 def _headline(summary):
-    """Pull the scalar metrics we compare across runs out of a run summary."""
+    """Pull the scalar metrics that are compared across runs out of one run summary."""
     m = summary["metrics"]
     return {
         "topology_match": m["topology"]["match"],
@@ -60,20 +63,15 @@ def run_evaluation(
     progress=None
 ):
     """
-    Run the full single-config rotation evaluation and save all results.
+    Run all four rotation evaluations for one configuration and save the results.
 
-    The defaults are the configuration of the run reported in the thesis
-    (`results/mnist_rotation/digit6_seed0/`).
+    The defaults reproduce the stored run in `results/mnist_rotation/digit6_seed0/`.
 
-    `h0_persistence_factor` / `h1_persistence_factor` > 0 replace the automatic
-    rules of §5.6 by an explicit threshold at that multiple of the median H0
-    merge scale; 0 keeps the automatic rule. They only affect the TDA runs, the
-    traversal baseline has no barcode.
+    A positive `h0_persistence_factor` or `h1_persistence_factor` replaces the automatic detection
+    rule by an explicit threshold at that multiple of the median H0 merge scale; 0 keeps the
+    automatic rule. Both only affect the TDA runs, since the baseline has no barcode.
 
-    Returns
-    -------
-    (comparison_dict, tag_dir) : the headline metrics of every run and the
-    directory they were written to.
+    Returns the headline metrics of every run and the directory they were written to.
     """
     def say(msg):
         if progress is not None:
@@ -109,8 +107,8 @@ def run_evaluation(
             key = f"{mode}_{method}"
             say(f"[{done}/{total}] {mode} / {method}: detecting + evaluating ...")
             try:
-                # a threshold resolved by an earlier TDA run says nothing about
-                # the baseline, so it must not linger in the saved parameters
+                # a threshold resolved by an earlier TDA run says nothing about the baseline, so
+                # it must not linger in the saved parameters
                 pipe.detect_kwargs.pop("min_persistence_h0", None)
                 pipe.detect_kwargs.pop("min_persistence_h1", None)
                 pipe.set_params(detection=method)
@@ -129,11 +127,11 @@ def run_evaluation(
                            "noise": float(noise) if mode == "denoising" else 0.0},
                 )
                 comparison[key] = _headline(summary)
-            except Exception as exc: # keep the other runs going on a failure
+            except Exception as exc: # a failing run must not take the other three down
                 comparison[key] = {"error": repr(exc)}
                 say(f"[{done}/{total}] {mode} / {method}: FAILED ({exc})")
 
-    # write the cross-run comparison
+    # write the comparison across all four runs
     root = results_root or os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "results")
     tag_dir = os.path.abspath(os.path.join(root, "mnist_rotation", tag))
@@ -153,7 +151,7 @@ def run_evaluation(
 
 
 def _format_comparison(comparison):
-    """Compact one-line-per-run summary for logging / a status label."""
+    """Compact summary, one line per run, for logging or a status label."""
     lines = []
     for key, m in comparison.items():
         if "error" in m:
@@ -174,8 +172,8 @@ if __name__ == "__main__":
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    # the defaults reproduce the run reported in the thesis
-    ap = argparse.ArgumentParser(description="Rotating-MNIST evaluation (Exp. 1)")
+    # the defaults reproduce the stored run
+    ap = argparse.ArgumentParser(description="Rotating-MNIST evaluation")
     ap.add_argument("--digit", type=int, default=6)
     ap.add_argument("--n-angles", type=int, default=360)
     ap.add_argument("--noise", type=float, default=0.25)

@@ -1,5 +1,9 @@
 """
-Tab 2: 1D Manifold
+The "Loop Detection" tab: the graph-traversal baseline on a single 1D manifold.
+
+Runs the whole pipeline on one connected toy curve, with a render mode per stage: the raw data,
+the fitted MFA components, the ordering read off the MST diameter, and the spline that
+parametrizes it. This detector assumes exactly one structure, an assumption the TDA tab drops.
 """
 
 import sys
@@ -27,13 +31,13 @@ from visualization.spline import visualize_spline
 
 DPI = 100
 
-# Bounds for resolution of plot (the resolution changes dynamicaly depending on the window size)
+# bounds on the plot resolution, which follows the window size
 MIN_TEX = 250
 MAX_TEX = 1600
-RESIZE_THRESHOLD = 25  # avoid rerendering spam during window-resizing
+RESIZE_THRESHOLD = 25 # do not re-render on every pixel while the window is being resized
 
 ROTATE_SENSITIVITY = 0.4
-RENDER_INTERVAL = 0.033  # 30fps throttle, shared by camera-drag and spline-slider
+RENDER_INTERVAL = 0.033 # 30 fps throttle, shared by the camera drag and the spline slider
 
 
 class Manifold1DTab:
@@ -67,7 +71,7 @@ class Manifold1DTab:
         self._last_mouse_pos = None
         self._last_render_time = 0.0
 
-        self._is_rendering = False 
+        self._is_rendering = False
         self._render_requested = False
 
     def build_tab_ui(self):
@@ -77,7 +81,7 @@ class Manifold1DTab:
 
         self._register_mouse_handlers()
 
-    # ------------------ Setup: Settings ---------------------------
+    # --- setup: settings ---
     def _build_settings_panel(self):
         _width = 150
         with dpg.child_window(width=400, autosize_y=True):
@@ -166,7 +170,7 @@ class Manifold1DTab:
             dpg.add_separator()
             self.status_text = dpg.add_text("No training has been conducted yet.")
 
-    # -------------------- Setup: Plot-Panel + Texture -----------------------
+    # --- setup: plot panel and texture ---
     def _build_plot_panel(self):
         self.texture_tag = f"{self._texture_tag_base}_{self._texture_counter}"
         self._texture_counter += 1
@@ -193,7 +197,7 @@ class Manifold1DTab:
             dpg.add_mouse_move_handler(callback=self._on_mouse_move)
             dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left, callback=self._on_mouse_up)
 
-    # ------------------------- Training -----------------------------
+    # --- training ---
     def _on_train(self):
         dpg.set_value(self.status_text, "Training...")
         threading.Thread(target=self._run_training_thread, daemon=True).start()
@@ -254,7 +258,7 @@ class Manifold1DTab:
             self._last_render_time = now
             self._update_plot()
 
-    # ------------ mouse dragging for 3d plots --------------------
+    # --- mouse dragging for 3d plots ---
     def _is_3d(self):
         return dpg.get_value(self.data_type) == "curve_in_3d"
 
@@ -293,7 +297,7 @@ class Manifold1DTab:
         self._dragging = False
         self._last_mouse_pos = None
 
-    # -------------------- Textur-Verwaltung -------------------------
+    # --- texture management ---
     def _swap_texture(self, width, height, data=None):
         new_tag = f"{self._texture_tag_base}_{self._texture_counter}"
         self._texture_counter += 1
@@ -327,7 +331,7 @@ class Manifold1DTab:
         self._swap_texture(new_w, new_h)
         self._update_plot()
 
-    # ------------------- Plot space ------------------------
+    # --- plot space ---
     def _plot_transform(self):
         """Affine map from the model's space to the plotted one (see geometry)."""
         return plot_transform(self.pipe.pre, self.projection, self.data.shape[1])
@@ -341,7 +345,7 @@ class Manifold1DTab:
         """The observations in the plotted coordinates."""
         return self.data if self.projection is None else self.data @ self.projection
 
-    # ------------------- Plotting ------------------------
+    # --- plotting ---
     def _update_plot(self):
         if self.pipe is None:
             return

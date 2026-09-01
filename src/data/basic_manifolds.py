@@ -1,13 +1,25 @@
+"""
+Toy manifolds with known topology, the ground truth of the demo tabs.
+
+Every generator returns an (n, D) point cloud and takes the same '(n, random_state)' arguments, so
+that 'data.synthetic.make_dataset' can dispatch on a name alone. The deterministic shapes ignore
+'random_state' and only accept it to keep that interface uniform.
+
+'embed_data_to_dimension' lifts any of the shapes into a higher-dimensional space, which is what
+makes the toy problem resemble the real datasets.
+"""
+
 import numpy as np
 
 
-# --------- helpers -----------------
+# --- helpers ---
 def _make_rng(random_state):
     return np.random.default_rng(random_state)
 
 
-# --------- 1d manifolds ---------------
+# --- 1d manifolds ---
 def line_in_2d(n=500, random_state=None):
+    """An open arc: the graph of sin(t) over t in [-3, 3]. One component, no loop."""
     t = np.linspace(-3, 3, n)
     x = t
     y = np.sin(t)
@@ -16,13 +28,21 @@ def line_in_2d(n=500, random_state=None):
 
 
 def circle(n=500, random_state=None):
+    """The unit circle, sampled without the duplicate endpoint. One loop."""
     theta = np.linspace(0, 2 * np.pi, n, endpoint=False)
     x = np.cos(theta)
     y = np.sin(theta)
     data = np.stack([x, y], axis=1)
     return data
 
+
 def curve_in_3d(n=1000, random_state=None):
+    """
+    A closed Lissajous curve in 3D, wound three times around itself.
+
+    The curve comes close to itself in several places, so the Euclidean distance is misleading
+    here and only the tangent-aware one follows it.
+    """
     t = np.linspace(0.0, 6 * np.pi, n)
     x = 15 * np.cos(t)
     y = 15 * np.sin(2 * t)
@@ -31,8 +51,9 @@ def curve_in_3d(n=1000, random_state=None):
     return data
 
 
-# ------------ 2d Manifolds ------------------
+# --- 2d manifolds ---
 def swiss_roll(n=1000, random_state=None):
+    """The classic rolled-up 2D sheet in 3D: one component, no loop."""
     rng = _make_rng(random_state)
     t = 1.5 * np.pi * (1 + 2 * rng.random(n))
     x = t * np.cos(t)
@@ -44,8 +65,9 @@ def swiss_roll(n=1000, random_state=None):
 
 def torus(n=1000, R=15.0, r=5.0, random_state=None):
     """
-    Torus parametrized by two angles (theta, phi).
-    The manifold is S1 x S1.
+    Torus of tube radius r around a circle of radius R, sampled uniformly in both angles.
+
+    The manifold is S1 x S1, so it carries two independent loops.
     """
     rng = _make_rng(random_state)
     theta = 2 * np.pi * rng.random(n)
@@ -60,8 +82,13 @@ def torus(n=1000, R=15.0, r=5.0, random_state=None):
 
 
 
-# ------------ Other Shapes, to test Topological Data Analysis ------------
+# --- shapes for testing the TDA detector ---
+# Each shape below has a topology the traversal baseline cannot express, since that one always
+# produces a single curve. The multi-component ones return ground-truth labels on request, which
+# is what the TDA tab scores its detection against.
+
 def half_circle(n=500, random_state=None):
+    """Half of the unit circle: one component that does not close. One arc."""
     theta = np.linspace(0, np.pi, n)
     x = np.cos(theta)
     y = np.sin(theta)
@@ -70,6 +97,12 @@ def half_circle(n=500, random_state=None):
 
 
 def two_circles(n=500, radius=1.0, separation=3.0, return_labels=False, random_state=None):
+    """
+    Two circles side by side, 'separation' apart: two components, two loops.
+
+    The test case for H0. 'separation' controls how far apart the structures are, and with it how
+    visible the gap in the H0 barcode becomes.
+    """
     n1 = n // 2
     n2 = n - n1
     theta1 = np.linspace(0, 2 * np.pi, n1, endpoint=False)
@@ -86,6 +119,12 @@ def two_circles(n=500, radius=1.0, separation=3.0, return_labels=False, random_s
 
 
 def circle_and_half_circle(n=500, radius=1.0, separation=3.0, return_labels=False, random_state=None):
+    """
+    A full circle next to a half one: two components, one loop and one arc.
+
+    The mixed case, where the detector has to keep H0 and H1 apart instead of assuming that every
+    component closes.
+    """
     n1 = n // 2
     n2 = n - n1
     theta_full = np.linspace(0, 2 * np.pi, n1, endpoint=False)
@@ -103,9 +142,12 @@ def circle_and_half_circle(n=500, radius=1.0, separation=3.0, return_labels=Fals
 
 def linked_circles_3d(n=1000, radius=1.0, offset=None, return_labels=False, random_state=None):
     """
-    Two intertwined circles (Hopf link).
-    C1 lies in the xy-plane, C2 in the xz-plane, shifted by `offset` -
-    causing the two circular areas to intersect.
+    Two interlocking circles (Hopf link): two components, two loops.
+
+    C1 lies in the xy-plane around the origin, C2 in the xz-plane shifted by 'offset' along x, so
+    each circle passes through the disc spanned by the other. This is the hard case, because the
+    two loops come very close without ever touching, and that is exactly the situation the
+    detector struggles with on real data.
     """
     if offset is None:
         offset = radius
@@ -125,16 +167,16 @@ def linked_circles_3d(n=1000, radius=1.0, offset=None, return_labels=False, rand
     return data
 
 
-# -------------------- Embedding ---------------------------
+# --- embedding ---
 def embed_data_to_dimension(
     data, new_dimension, noise=0.005, random_rotation=True, random_state=None
 ):
     """
     Embed (N, D) data into 'new_dimension' >= D dimensions.
 
-    Uses a random orthonormal projection unless 'random_rotation' is False, then
-    adds isotropic Gaussian noise of std 'noise'. Returns the embedded points and
-    the map W with data_high = data @ W.T.
+    Uses a random orthonormal map unless 'random_rotation' is False, then adds isotropic Gaussian
+    noise of standard deviation 'noise'. Returns the embedded points and the map W, where
+    data_high = data @ W.T.
     """
     rng = _make_rng(random_state)
     D = data.shape[1]

@@ -1,4 +1,4 @@
-"""Visualization of Gaussian mixture models (data + components) in 2D/3D."""
+"""Draws a Gaussian mixture model, data and components together, in 2D or 3D."""
 
 from visualization.geometry import set_axis_limits, get_component_plotter
 
@@ -7,9 +7,7 @@ def _visualize_gmm_nd(
     ax, data, means, covariances, priors, draw_points=True,
     visualisation_mode="ellipsoid", draw_means=True
 ):
-    """
-    Unified implementation for 2D and 3D. The dimension is derived from data.shape[1]
-    """
+    """The shared implementation for 2D and 3D. The dimension comes from the data itself."""
     D = data.shape[1]
     is_3d = D == 3
 
@@ -36,7 +34,7 @@ def _visualize_gmm_higher_dimension(
     ax, data, means, covariances, priors, projection_matrix,
     draw_points=True, visualisation_mode="ellipsoid", draw_means=True
 ):
-    """Visualizes high-dimensional data, projected onto 2D/3D via projection_matrix."""
+    """Draws high-dimensional data after projecting it down with `projection_matrix`."""
     projected_data = data @ projection_matrix
     projected_means = means @ projection_matrix
     projected_covariances = [
@@ -53,8 +51,10 @@ def visualize_gmm(
     draw_points=True, visualisation_mode="ellipsoid", draw_means=True
 ):
     """
-    Main entry point: automatically selects 2D/3D or projects first
-    if `data` has more than 3 dimensions and a `projection_matrix` has been provided.
+    The entry point. Picks 2D or 3D automatically.
+
+    Data with more than three dimensions is projected down first, which needs a
+    `projection_matrix`.
     """
     if projection_matrix is not None:
         _visualize_gmm_higher_dimension(
@@ -64,10 +64,9 @@ def visualize_gmm(
         return
 
     D = data.shape[1]
-    if D == 2:
-        _visualize_gmm_nd(ax, data, means, covariances, priors, draw_points, visualisation_mode, draw_means)
-    elif D == 3:
-        _visualize_gmm_nd(ax, data, means, covariances, priors, draw_points, visualisation_mode, draw_means)
+    if D in (2, 3):
+        _visualize_gmm_nd(ax, data, means, covariances, priors, draw_points,
+                          visualisation_mode, draw_means)
     else:
         print("visualisation of dimension higher than 3 is not supported yet.")
 

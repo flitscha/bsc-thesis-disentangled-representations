@@ -1,15 +1,12 @@
 """
-Pipeline step §5.5: order the MFA components along their intrinsic 1D structure
-by graph traversal.
+Order the MFA components along their 1D structure by graph traversal.
 
-The core routine 'order_along_path' lays out a set of components along the
-diameter of their minimum spanning tree.
-The TDA detector (§5.6) reuses it to order each component without a loop.
+'order_along_path' lays a set of components out along the diameter of their minimum spanning tree.
+The TDA detector reuses it to order every component that has no loop.
 
-'detect_traversal' orders all components into a single curve and decides
-whether that curve closes into a loop.
-It assumes one connected 1D structure and is the fast, simple counterpart to the
-TDA detector, which also handles multiple components/loops.
+'detect_traversal' is the baseline detector built on top of it: it orders all components into a
+single curve and decides whether that curve closes. It assumes one connected 1D structure, which
+makes it the simple counterpart to TDA, which also handles several components and loops.
 """
 
 import numpy as np
@@ -17,8 +14,8 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import minimum_spanning_tree, dijkstra
 
 
-# An ordered path is treated as closed when the gap between its two endpoints is
-# no larger than this multiple of the typical consecutive step. 
+# An ordered path counts as closed when the gap between its two endpoints is no larger than this
+# multiple of the typical step between consecutive components.
 _LOOP_CLOSURE_RATIO = 3.0
 
 
@@ -31,16 +28,10 @@ def _mst(distance_matrix: np.ndarray, node_indices: np.ndarray):
 
 def order_along_path(distance_matrix: np.ndarray, node_indices=None) -> list:
     """
-    Order points along their 1D structure via the diameter of their minimum spanning tree.
+    Order points along their 1D structure, following the diameter of their minimum spanning tree.
 
-    Parameters
-    ----------
-    distance_matrix : (N, N) geodesic distance matrix (§5.4).
-    node_indices : indices into distance_matrix to order; None uses all nodes.
-
-    Returns
-    -------
-    order : list of global vertex indices ordered along the path.
+    'node_indices' selects which rows of the geodesic 'distance_matrix' to order; None takes all of
+    them. Returns the global vertex indices in order along the path.
     """
     if node_indices is None:
         node_indices = np.arange(distance_matrix.shape[0])
@@ -50,12 +41,11 @@ def order_along_path(distance_matrix: np.ndarray, node_indices=None) -> list:
 
     mst = _mst(distance_matrix, node_indices)
 
-    # start with an arbitrary node, and calculate the furthest node (far0).
+    # Two sweeps: from an arbitrary node to the furthest one (far0), then from far0 to the
+    # furthest one from there (far1). The path far0 -> far1 is the diameter of the tree.
     dist0, _ = dijkstra(mst, directed=False, indices=0, return_predecessors=True)
     far0 = int(np.argmax(dist0))
 
-    # repeat this step. This time, we start with the node 'far0'.
-    # The path from far0 to far1 is the longest possible path in the spanning tree.
     dist1, predecessors = dijkstra(mst, directed=False, indices=far0, return_predecessors=True)
     far1 = int(np.argmax(dist1))
 
@@ -88,6 +78,10 @@ def closes_into_loop(
 ) -> bool:
     """
     Decide whether an ordered open path actually closes into a loop.
+
+    A spanning tree cannot contain the longest edge of a cycle, so the gap between the two
+    endpoints is the largest step of the loop rather than a typical one, and the threshold has to
+    allow for that. The curve counts as closed if the gap is at most 'ratio' times the median step.
     """
     if len(order) < 3:
         return False
@@ -99,21 +93,14 @@ def closes_into_loop(
 
 def detect_traversal(distance_matrix: np.ndarray, closed=None) -> dict:
     """
-    Naive baseline detection: order all components into one curve along the MST
-    diameter of the geodesic graph, then classify it as a loop or an open path.
+    The baseline detector: order all components into one curve, then classify it as loop or path.
 
-    Parameters
-    ----------
-    distance_matrix : (N, N) geodesic distance matrix (§5.4).
-    closed : bool or None
-        Force the curve to be a loop (True) or an open path (False). None
-        (default) decides automatically via closes_into_loop.
+    'closed' forces the curve to be a loop (True) or an open path (False); None decides
+    automatically via closes_into_loop.
 
-    Returns
-    -------
-    result : dict with keys
-        "curves" : [{"type": "loop"|"path", "component": 0, "order": [...]}],
-        "graph"  : {"edges": MST edges} (for visualization).
+    Returns a dict with "curves", a single entry of the form
+    {"type": "loop"|"path", "component": 0, "order": [...]}, and "graph", the MST edges for the
+    visualization.
     """
     order = order_along_path(distance_matrix)
     is_loop = closes_into_loop(distance_matrix, order) if closed is None else bool(closed)

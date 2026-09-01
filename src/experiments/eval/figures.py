@@ -1,7 +1,7 @@
 """
-Plot functions for the evaluation.
+The plots of the evaluation.
 
-Each function builds and returns a matplotlib Figure; the runner saves them.
+Each function builds a matplotlib Figure and returns it. Saving is left to the caller.
 """
 
 import numpy as np
@@ -12,12 +12,11 @@ from matplotlib.figure import Figure
 
 def plot_persistence(diagram, title="Persistence diagram", h1_labels=None):
     """
-    Persistence diagram (birth vs death), H0 and H1 distinguished, with infinite
-    deaths on a line above the finite features.
+    Persistence diagram of birth against death, with H0 and H1 drawn apart.
 
-    'h1_labels' annotates the H1 triangles, one dict per loop with keys "birth",
-    "death" and "label". The labels reuse the identity a loop has in the sweep
-    figures, so both name the same loops.
+    Infinite deaths go on a line above the finite features. 'h1_labels' annotates the H1 markers,
+    one dict per loop with the keys "birth", "death" and "label". Those labels are the same ones
+    the sweep figures use, so both name the same loops.
     """
     pts = {0: [], 1: []}
     for dim, (b, d) in diagram:
@@ -59,7 +58,7 @@ def plot_persistence(diagram, title="Persistence diagram", h1_labels=None):
 
 
 def _is_pruned(label):
-    """Charts no observation backs are labelled -1; class labels may be strings."""
+    """A chart no observation backs is labelled -1, while a class label may well be a string."""
     return np.issubdtype(np.asarray(label).dtype, np.number) and label < 0
 
 
@@ -68,9 +67,8 @@ def plot_component_scatter(
     label_name="ground-truth digit",
 ):
     """
-    Two 2D scatter panels of the same low-dimensional embedding Z2 (N, 2):
-    left coloured by the ground-truth digit, right by the detected H0 connected
-    component.
+    Two scatter panels of the same (N, 2) embedding: ground truth on the left, detection on the
+    right.
     """
     Z2 = np.asarray(Z2)
     digit_id = np.asarray(digit_id)
@@ -100,11 +98,7 @@ def plot_component_scatter_3d(
     Z3, digit_id, component_id, title="Detected structure (3D)", subtitle=None,
     label_name="ground-truth digit",
 ):
-    """
-    3D version of plot_component_scatter: two 3D-embedding panels (top-3 PCA),
-    left coloured by the ground-truth class (`label_name`), right by detected H0
-    connected component.
-    """
+    """The 3D version of plot_component_scatter, over the top three principal directions."""
     Z3 = np.asarray(Z3)
     digit_id = np.asarray(digit_id)
     component_id = np.asarray(component_id)
@@ -131,7 +125,7 @@ def plot_component_scatter_3d(
 
 
 def _suptitle(fig, title, subtitle=None):
-    """Figure suptitle, with an optional second line for the H0/H1 counts."""
+    """The figure title, with an optional second line for the H0 and H1 counts."""
     if subtitle:
         fig.suptitle(f"{title}\n{subtitle}", fontsize=13)
     else:
@@ -140,8 +134,10 @@ def _suptitle(fig, title, subtitle=None):
 
 def _cell_drawer(image_shape, to_image=None, draw=None):
     """
-    How one observation is drawn into a cell: as an image by default, or with a
-    custom `draw(ax, vector)` for data that are not images (mocap poses).
+    How a single observation is drawn into one cell of a strip.
+
+    By default as an image. Data that are not images, such as the mocap poses, pass their own
+    `draw(ax, vector)` instead.
     """
     if draw is not None:
         return draw
@@ -159,11 +155,10 @@ def plot_recovery_strips(
     show_captions=True, row_gap=0.15, component_gap=0.15,
 ):
     """
-    Per correct component two stacked rows: the ground-truth frame (top) and the
-    model reconstruction at the recovered coordinate (bottom)
+    Two stacked rows per component: the ground-truth frame on top, the model below it.
 
-    `row_gap` is the vertical space between those two rows, `component_gap` the
-    one between components; `show_captions` toggles the per-column value titles.
+    `row_gap` is the vertical space between those two rows and `component_gap` the space between
+    components. `show_captions` turns the per-column value titles on and off.
     """
     draw_cell = _cell_drawer(image_shape, to_image, draw)
     if not components:
@@ -210,10 +205,11 @@ def plot_reconstruction_strips(strips, image_shape, to_image=None, title=None,
                                empty_note="Nothing to show.", draw=None,
                                cell_size=(1.15, 1.35)):
     """
-    One row of reconstructions per detected component, traversing its curve. Each
-    `strips` entry is (label, images (K, D), angles (K,) or None); K may differ
-    per row (e.g. 8 for a full loop, 4 for a half arc). Rows are left-aligned in
-    a shared grid; angle titles are drawn on the top of each cell when given.
+    One row of reconstructions per detected component, walking along its curve.
+
+    Each `strips` entry is (label, images (K, D), angles (K,) or None). K may differ per row, for
+    instance 8 frames for a full loop against 4 for a half arc, and the rows are left-aligned in a
+    shared grid.
     """
     draw_cell = _cell_drawer(image_shape, to_image, draw)
     if not strips:
@@ -248,8 +244,9 @@ def plot_factor_residual(
     title="Factor recovery residual"
 ):
     """
-    Signed residual (pred - true) after post-hoc alignment, plotted against the
-    true factor. For periodic factors it is wrapped to (-180, 180].
+    The signed residual after alignment, plotted against the true factor.
+
+    A periodic factor is wrapped to (-180, 180].
     """
     true = np.asarray(true, dtype=float)
     pred = np.asarray(pred, dtype=float)
@@ -269,7 +266,7 @@ def plot_factor_residual(
 
 
 def _binned_mean(x, y, n_bins):
-    """Mean of y per bin over the range of x; returns bin centres + means."""
+    """The mean of y per bin over the range of x. Returns the bin centres and the means."""
     x = np.asarray(x)
     y = np.asarray(y)
     edges = np.linspace(x.min(), x.max(), n_bins + 1)
@@ -287,9 +284,7 @@ def plot_reconstruction_decomposition(
     factor, errors, factor_label="angle (deg)",
     title="Reconstruction decomposition", n_bins=40
 ):
-    """
-    full / mfa_floor / pca_floor as a function of the factor
-    """
+    """The three reconstruction errors of M3, plotted against the factor."""
     factor = np.asarray(factor)
 
     fig = Figure(figsize=(6.5, 4.5))
@@ -314,9 +309,10 @@ def plot_reconstruction_decomposition(
 
 def plot_image_strip(rows, image_shape, col_labels=None, to_image=None, title=None):
     """
-    Grid of images. 'rows' is a list of (row_label, vectors (K, D0)). 'to_image'
-    maps a vector to a 2D image (defaults to a plain reshape). imshow uses a
-    fixed [0, 1] range so brightness is comparable across the whole strip.
+    A grid of images, given as a list of (row_label, vectors (K, D0)) rows.
+
+    'to_image' maps one vector to a 2D image and defaults to a plain reshape. The brightness range
+    is fixed to [0, 1], so that the cells stay comparable across the whole strip.
     """
     to_image = to_image or (lambda v: np.asarray(v).reshape(image_shape))
     n_rows = len(rows)

@@ -1,5 +1,10 @@
 """
-Tab 3: Topology Explorer (TDA)
+The "Topology (TDA)" tab: structure detection by persistent homology.
+
+The counterpart to the Loop Detection tab, on toy manifolds the traversal baseline cannot handle:
+several separate components, a mix of loops and open arcs, and two interlocking circles. Shows
+the detected curves next to the persistence diagram they were read off, and exposes the H0 and H1
+thresholds so their effect on the detected topology can be seen directly.
 """
 
 import sys
@@ -36,7 +41,7 @@ RESIZE_THRESHOLD = 25
 ROTATE_SENSITIVITY = 0.4
 RENDER_INTERVAL = 0.033
 
-# fn: generator function, has_labels: supports return_labels=True (ground truth, for later evaluation)
+# `fn` is the generator, `has_labels` says whether it can return ground-truth component labels
 DATASETS = {
     "loop_3d": {"fn": curve_in_3d, "has_labels": False},
     "half_circle": {"fn": half_circle, "has_labels": False},
@@ -65,12 +70,12 @@ class TopologyDemoTab:
         self.curve_controls_tag = f"{self.plot_panel_tag}_curve_controls_{uid}"
         self.curve_selector_tag = f"{self.plot_panel_tag}_curve_selector_{uid}"
 
-        self.raw_data = None       # (N, D) point cloud, ground-truth data
-        self.projection = None     # map back to the intrinsic coordinates, if embedded
-        self.pipe = None           # fitted ManifoldPipeline
-        self.topology = None       # result dict from pipe.detect()
-        self.selected_curve = 0    # index into self.topology["curves"]
-        self.t = 0.0               # position along the selected curve
+        self.raw_data = None # (N, D) point cloud, ground-truth data
+        self.projection = None # map back to the intrinsic coordinates, if embedded
+        self.pipe = None # fitted ManifoldPipeline
+        self.topology = None # result dict from pipe.detect()
+        self.selected_curve = 0 # index into self.topology["curves"]
+        self.t = 0.0 # position along the selected curve
 
         self.tex_w, self.tex_h = 700, 700
         self.azim = -60.0
@@ -88,7 +93,7 @@ class TopologyDemoTab:
 
         self._register_mouse_handlers()
 
-    # ------------------ Setup: Settings ---------------------------
+    # --- setup: settings ---
     def _build_settings_panel(self):
         _width = 150
         with dpg.child_window(width=400, autosize_y=True):
@@ -207,7 +212,7 @@ class TopologyDemoTab:
             dpg.add_separator()
             self.status_text = dpg.add_text("No training has been conducted yet.")
 
-    # -------------------- Setup: Plot-Panel + Texture -----------------------
+    # --- setup: plot panel and texture ---
     def _build_plot_panel(self):
         self.texture_tag = f"{self._texture_tag_base}_{self._texture_counter}"
         self._texture_counter += 1
@@ -234,7 +239,7 @@ class TopologyDemoTab:
             dpg.add_mouse_move_handler(callback=self._on_mouse_move)
             dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left, callback=self._on_mouse_up)
 
-    # ------------------------- Training -----------------------------
+    # --- training ---
     def _on_train(self):
         dpg.set_value(self.status_text, "Training...")
         threading.Thread(target=self._run_training_thread, daemon=True).start()
@@ -348,7 +353,7 @@ class TopologyDemoTab:
             self._last_render_time = now
             self._update_plot()
 
-    # ------------ mouse dragging for 3d plots --------------------
+    # --- mouse dragging for 3d plots ---
     def _is_3d(self):
         return self.raw_data is not None and self._plot_data().shape[1] >= 3
 
@@ -385,7 +390,7 @@ class TopologyDemoTab:
         self._dragging = False
         self._last_mouse_pos = None
 
-    # -------------------- Texture management -------------------------
+    # --- texture management ---
     def _swap_texture(self, width, height, data=None):
         new_tag = f"{self._texture_tag_base}_{self._texture_counter}"
         self._texture_counter += 1
@@ -419,7 +424,7 @@ class TopologyDemoTab:
         self._swap_texture(new_w, new_h)
         self._update_plot()
 
-    # ------------------- Plot space ------------------------
+    # --- plot space ---
     def _plot_transform(self):
         """Affine map from the model's space to the plotted one (see geometry)."""
         pre = self.pipe.pre if self.pipe is not None else None
@@ -436,7 +441,7 @@ class TopologyDemoTab:
             return self.raw_data
         return self.raw_data @ self.projection
 
-    # ------------------- Plotting ------------------------
+    # --- plotting ---
     def _update_plot(self):
         if self.raw_data is None:
             return
@@ -557,3 +562,4 @@ class TopologyDemoTab:
             return
 
         dpg.set_value(self.texture_tag, buf.flatten())
+

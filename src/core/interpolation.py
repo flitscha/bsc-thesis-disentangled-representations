@@ -1,11 +1,9 @@
 """
-Pipeline step §5.7: interpolate the detected 1D structures.
+Interpolate the detected 1D structures with cubic splines.
 
-'interpolate_curves' turns index orders plus the component means into a cubic
-Hermite spline that passes through the means exactly while softly aligning its
-knot tangents with the MFA chart tangents. Open paths use natural boundary
-tangents; loops get a periodic wrap segment so position and tangent match across
-the seam.
+'interpolate_curves' turns index orders plus the component means into a cubic Hermite spline. The
+spline passes through the means exactly, while its knot tangents are only softly aligned with the
+MFA chart tangents. Loops get an extra wrap segment, so position and tangent match across the seam.
 """
 
 import numpy as np
@@ -18,15 +16,15 @@ def interpolate_curves(curves, points, weights=None, tangents=None, tangent_weig
 
     Parameters
     ----------
-    curves : dicts with at least "type" ("loop"/"path") and "order" (indices).
+    curves : dicts with at least "type" ("loop" or "path") and "order" (indices).
     points : (N, D) point set the orders index into.
-    weights : (N,) mixing weights pi_k; a small pi_k weakens that chart's tangent.
-    tangents : (N, D) or (N, D, L) chart frames, the top-variance direction is
-        used. None disables tangent alignment.
-    tangent_weight : strength of the tangent alignment relative to curvature.
+    weights : (N,) mixing weights. The smaller the weight, the less that chart's tangent counts.
+    tangents : (N, D) or (N, D, L) chart frames, of which the top-variance direction is used.
+        None turns the tangent alignment off.
+    tangent_weight : how strongly the tangents are enforced, relative to the curvature.
 
-    Returns copies of the curves with "points" and "spline" added. The means are
-    interpolated exactly regardless of the weights.
+    Returns copies of the curves with "points" and "spline" added. The means are hit exactly no
+    matter what the weights are.
     """
     points = np.asarray(points)
     W = None if weights is None else np.asarray(weights)
@@ -48,11 +46,10 @@ def interpolate_curves(curves, points, weights=None, tangents=None, tangent_weig
 
 def build_spline(points_ordered, closed, weights=None, tangents=None, tangent_weight=3.0):
     """
-    Fit a cubic Hermite spline that interpolates the ordered points exactly and
-    softly aligns its knot tangents with the chart tangents.
+    Fit a cubic Hermite spline through the ordered points, aligned softly with the chart tangents.
 
-    Returns a callable f(t), t in [0, 1]: f(scalar) -> (D,), f(array) -> (M, D).
-    For loops the parameter is periodic (f(1) == f(0)).
+    Returns a callable f(t) for t in [0, 1], where f(scalar) gives a (D,) point and f(array) an
+    (M, D) block. On a loop the parameter is periodic, so f(1) equals f(0).
     """
     pts = np.asarray(points_ordered, dtype=float)
     n = pts.shape[0]
@@ -61,15 +58,15 @@ def build_spline(points_ordered, closed, weights=None, tangents=None, tangent_we
 
     tang, wt = _prep_tangents(tangents, weights, n)
 
-    # Distance between consecutive means. A loop also gets the closing seam
-    # (last -> first) so it is treated like any other segment.
+    # Distances between consecutive means. A loop also gets the closing seam from last to first,
+    # so that it is treated like any other segment.
     periodic = bool(closed and n >= 3)
     diffs = np.diff(pts, axis=0)
     if periodic:
         diffs = np.vstack([diffs, pts[0] - pts[-1]])
     steps = np.linalg.norm(diffs, axis=1)
 
-    # floor near-zero segments so the bending energy's 1/h terms stay finite.
+    # put a floor under near-zero segments, so the 1/h terms of the bending energy stay finite
     med = np.median(steps[steps > 0]) if np.any(steps > 0) else 1.0
     steps = np.maximum(steps, 1e-6 * med)
     total = steps.sum()
@@ -88,15 +85,15 @@ def build_spline(points_ordered, closed, weights=None, tangents=None, tangent_we
 
 def _solve_tangents(pts, segments, tang, wt, tangent_weight):
     """
-    Choose the derivative m_i at each knot; returns m of shape (n, D).
+    Choose the derivative m_i at each knot. Returns m of shape (n, D).
 
-    The tangents minimize the bending energy while being nudged toward their
-    chart tangent, strongly where pi_k is large and barely where it is small.
-    Both terms are quadratic in m, so this is one linear system.
+    The derivatives minimize the bending energy while being nudged towards their chart tangent,
+    strongly where the chart carries a lot of data and barely where it carries little. Both terms
+    are quadratic in m, so the whole thing is a single linear system.
     """
     n, D = pts.shape
 
-    # Write the bending energy (integral ||s''||^2 du) as a quadratic in the tangents m
+    # write the bending energy, the integral of ||s''||^2, as a quadratic form in the tangents m
     K = np.zeros((n, n))
     g = np.zeros((n, D))
     for a, b, h in segments:
@@ -107,12 +104,12 @@ def _solve_tangents(pts, segments, tang, wt, tangent_weight):
         g[a] += (pts[a] - pts[b]) * (12.0 / h ** 2)
         g[b] += (pts[a] - pts[b]) * (12.0 / h ** 2)
 
-    # Setting the gradient of E to zero gives the linear system A vec(m) = rhs.
+    # setting the gradient to zero gives the linear system A vec(m) = rhs
     A = np.kron(K, np.eye(D))
     rhs = -0.5 * g.reshape(-1)
 
-    # for each knot add a penalty on the part of m_i that is perpendicular to the
-    # chart tangent (projector I - t t^T).
+    # At each knot, penalize the part of m_i perpendicular to the chart tangent, using the
+    # projector I - t t^T. This constrains the direction but leaves the speed free.
     if tang is not None and tangent_weight > 0:
         kscale = np.median(np.diag(K))
         for i in range(n):
@@ -120,16 +117,15 @@ def _solve_tangents(pts, segments, tang, wt, tangent_weight):
             proj = np.eye(D) - np.outer(tang[i], tang[i])
             A[i * D:(i + 1) * D, i * D:(i + 1) * D] += lam * proj
 
-    A += 1e-9 * (np.trace(A) / (n * D)) * np.eye(n * D) # numerical safeguard
+    A += 1e-9 * (np.trace(A) / (n * D)) * np.eye(n * D) # guard against a singular system
     return np.linalg.solve(A, rhs).reshape(n, D)
 
 
 def _hermite_spline(u, pts, m, periodic):
     """
-    Build the callable curve f(t) from the knots: positions 'pts' at parameters
-    'u' with tangents 'm'.
+    Build the callable curve f(t) from the knots: positions 'pts' at parameters 'u', tangents 'm'.
 
-    For a loop we repeat the first knot at u = 1 (same position and tangent)
+    A loop repeats its first knot at u = 1, with the same position and the same tangent.
     """
     if periodic:
         x = np.concatenate([u, [1.0]])
@@ -149,29 +145,28 @@ def _hermite_spline(u, pts, m, periodic):
 
 
 def _norm_mean1(x):
-    """Normalize non-negative weights to mean 1 (fall back to uniform)."""
     mean = np.mean(x)
     return x / mean if mean > 0 else np.ones_like(x)
 
 
 def _prep_tangents(tangents, weights, n):
     """
-    Return (unit primary tangents, per-knot tangent weights) or (None, None).
+    Return the unit primary tangents and the per-knot weights, or (None, None).
 
-    The weight is pi_k normalized to mean 1 (so 'tangent_weight' stays scale-
-    free); uniform weights if none are given.
+    The weights are the mixing weights normalized to mean 1, which keeps 'tangent_weight' free of
+    the data scale. Without given weights they are uniform.
     """
     if tangents is None:
         return None, None
     tang = np.asarray(tangents, dtype=float)
-    tang = tang[:, :, 0] if tang.ndim == 3 else tang # primary direction
+    tang = tang[:, :, 0] if tang.ndim == 3 else tang # the primary direction of the frame
     tang = tang / (np.linalg.norm(tang, axis=1, keepdims=True) + 1e-12)
     wt = np.ones(n) if weights is None else _norm_mean1(np.asarray(weights, float))
     return tang, wt
 
 
 def _constant_spline(point):
-    """Curve collapsed to a single point (degenerate one-component structure)."""
+    """Curve collapsed to a single point, for a structure with only one component."""
     def spline(t):
         t_arr = np.atleast_1d(np.asarray(t, dtype=float))
         out = np.repeat(point[None, :], t_arr.size, axis=0)

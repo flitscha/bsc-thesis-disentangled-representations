@@ -1,10 +1,9 @@
 """
-Convenience loader for the synthetic toy manifolds used in the demos and
-experiments. Turns a short name into a point cloud, optionally embedded into a
-higher-dimensional ambient space with added noise.
+Loader for the synthetic toy manifolds of the demos.
 
-Kept separate from the pipeline: data generation is a data source, not a
-pipeline step. The pipeline (core/pipeline.py) only ever sees a numpy array X.
+Turns a short name into a point cloud, optionally embedded into a higher-dimensional space with
+noise. Kept out of the pipeline on purpose: generating data is a data source, not a pipeline step,
+and the pipeline only ever sees a numpy array.
 """
 
 from data.basic_manifolds import (
@@ -29,12 +28,11 @@ def make_dataset(data_type, n, embed_dim=None, noise=0.005, seed=None):
     """
     Generate a synthetic manifold dataset of n points.
 
-    'data_type' is one of _GENERATORS. A positive 'embed_dim' embeds the points
-    into that many ambient dimensions via a random orthonormal map plus isotropic
-    noise of standard deviation 'noise'.
+    'data_type' is one of _GENERATORS. A positive 'embed_dim' lifts the points into that many
+    dimensions with a random orthonormal map and isotropic noise of standard deviation 'noise'.
 
-    Returns the point cloud and the embedding map W with X = data @ W.T (None if
-    not embedded), which lets a model be visualized in intrinsic coordinates.
+    Returns the point cloud and the embedding map W, where X = data @ W.T, or None if nothing was
+    embedded. The map is what lets a fitted model be drawn in the intrinsic coordinates again.
     """
     if data_type not in _GENERATORS:
         raise ValueError(
@@ -47,3 +45,4 @@ def make_dataset(data_type, n, embed_dim=None, noise=0.005, seed=None):
         return data, None
 
     return embed_data_to_dimension(data, embed_dim, noise=noise, random_state=seed)
+

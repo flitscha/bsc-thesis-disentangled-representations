@@ -1,16 +1,15 @@
 """
-Multi-factor experiment: several rotating MNIST digits at once.
+Several rotating MNIST digits at once, the mixed multi-structure case.
 
-Different digits form separate connected components (H0); a digit swept over the
-full circle is a loop (H1), a partial sweep an open arc. This is the mixed
-multi-structure case of §5.6.
+Different digits form separate connected components. A digit swept over the full circle is a
+loop, a partial sweep an open arc, so both kinds of structure show up in the same dataset.
 
-Lighter than the single-digit evaluation: TDA only, one noise regime, and only
-the structural results, which is where the multi-factor story lives.
+Lighter than the single-digit evaluation: TDA only, one noise level, and only the structural
+results, since that is where the multi-factor story lives.
 
-    M1  topology     expected vs. detected components and per-component type
-    M2  angle error  per component in degrees (loop / arc alignment)
-    M4  ARI          agreement of detected components with the digit labels
+    M1  topology     expected against detected components, and the type of each
+    M2  angle error  per component, in degrees
+    M4  ARI          how well the detected components agree with the digit labels
 
 Results are written to results/mnist_multi/<tag>/.
 """
@@ -34,12 +33,12 @@ IMAGE_SHAPE = (30, 30)
 
 
 def _is_loop_spec(s):
-    """A ground-truth spec is a loop iff its digit is swept over the full circle."""
+    """A spec is a loop exactly when its digit is swept over the full circle."""
     return float(s.get("start", 0.0)) == 0.0 and float(s.get("end", 360.0)) == 360.0
 
 
 def _spec_tag(specs):
-    """Compact filename tag like '3loop_7loop_2arc' describing the setup."""
+    """Compact folder name describing the setup, such as '3loop_7loop_2arc'."""
     parts = []
     for s in specs:
         parts.append(f"{int(s['digit'])}{'loop' if _is_loop_spec(s) else 'arc'}")
@@ -48,10 +47,11 @@ def _spec_tag(specs):
 
 def _per_component_angle_errors(t, cid, angles, digit_id, curves):
     """
-    Per detected curve: align its coordinate to the true angle (loop or arc
-    depending on the curve type) and report the residual in degrees. The digit
-    label is the majority vote over the curve's members, so a curve that wrongly
-    merged two digits is visible as a split label / large error.
+    Align each detected curve to the true angle and report the residual in degrees.
+
+    Whether the loop or the arc alignment is used follows the type the curve was detected as. The
+    digit label is a majority vote over the curve's members, so a curve that wrongly merged two
+    digits shows up as a low purity together with a large error.
     """
     out = []
     for j, curve in enumerate(curves):
@@ -67,7 +67,7 @@ def _per_component_angle_errors(t, cid, angles, digit_id, curves):
         if curve["type"] == "loop":
             err = align_loop(t_j, ang_j)["error_deg"]
         else:
-            err = align_arc(t_j, ang_j)["error"]  # factor is in degrees
+            err = align_arc(t_j, ang_j)["error"] # factor is in degrees
 
         out.append({
             "curve": j, "type": curve["type"], "n": n,
@@ -80,8 +80,8 @@ def _per_component_angle_errors(t, cid, angles, digit_id, curves):
 
 
 def _loop_entries(t, cid, angles, digit_id, curves):
-    """One scalar entry per detected loop: members, majority digit, loop-aligned
-    median angle error and H1 persistence."""
+    """One entry per detected loop: its members, majority digit, median angle error and
+    persistence."""
     entries = []
     for j, curve in enumerate(curves):
         if curve.get("type") != "loop":
@@ -102,10 +102,11 @@ def _loop_entries(t, cid, angles, digit_id, curves):
 
 def _classify_loops(entries, matched_ids):
     """
-    Split detected loops into 'correct' and 'extra' by the spec->curve matching:
-    a loop is correct if it was picked to represent some expected digit (its id
-    is in `matched_ids`), every other detected loop is extra (a shortcut on the
-    same digit, or a loop spuriously closed on an arc digit).
+    Split the detected loops into correct and extra ones, following the matching.
+
+    A loop counts as correct if it was picked to represent one of the expected digits. Every other
+    loop is extra: either a shortcut on a digit that already has its loop, or a loop wrongly
+    closed on a digit that should have stayed an arc.
     """
     correct = sorted((e for e in entries if e["curve"] in matched_ids),
                      key=lambda e: e["majority_digit"])
@@ -115,14 +116,14 @@ def _classify_loops(entries, matched_ids):
 
 
 def _loop_brief(e):
-    """JSON-safe scalar summary of a loop entry (drops the raw arrays)."""
+    """A JSON-safe summary of one loop entry, without the raw arrays."""
     return {"curve": e["curve"], "majority_digit": e["majority_digit"],
             "persistence": e["persistence"], "n": e["n"],
             "angle_median_deg": e["angle_median_deg"]}
 
 
 def _reconstruct_along(pipe, curve, n):
-    """n reconstructions evenly along a curve (loops periodic; arcs incl. ends)."""
+    """n reconstructions spread evenly along a curve. An arc includes both ends, a loop does not."""
     is_loop = curve["type"] == "loop"
     t_grid = np.linspace(0.0, 1.0, n, endpoint=not is_loop)
     imgs = pipe.reconstruct(np.asarray(curve["spline"](t_grid)))
@@ -130,7 +131,7 @@ def _reconstruct_along(pipe, curve, n):
 
 
 def _nearest_member(m_angles, target, periodic):
-    """Index (into the members) whose true angle is closest to `target`."""
+    """The member whose true angle comes closest to `target`."""
     if periodic:
         d = np.abs((m_angles - target + 180.0) % 360.0 - 180.0)
     else:
@@ -140,17 +141,14 @@ def _nearest_member(m_angles, target, periodic):
 
 def _match_specs_to_curves(cid, digit_id, curves, specs):
     """
-    Assign expected digits to detected curves one-to-one, maximising total overlap.
+    Assign the expected digits to the detected curves one to one, maximising the total overlap.
 
-    The score of a (digit, curve) pair is how many of that digit's observations
-    are members of that curve; the Hungarian algorithm then maximises the sum, so
-    two digits cannot fight over the same loop. Pairs with zero overlap are never
-    assigned, so a missing loop is a miss rather than forced onto an unrelated
-    curve, and surplus digits stay unmatched (curve=None).
+    A (digit, curve) pair scores how many of that digit's observations are members of that curve,
+    and the Hungarian algorithm then maximises the sum, so two digits cannot fight over the same
+    loop. A pair with zero overlap is never assigned, so a missing loop stays a miss instead of
+    being forced onto an unrelated curve, and a surplus digit stays unmatched.
 
-    Returns (matches, extra_curve_ids), where a match is
-    {digit, type ('loop'|'arc'), span, curve (int|None), n_overlap} and the extra
-    ids are the curves no digit claimed.
+    Returns the matches and the ids of the curves no digit claimed.
     """
     valid = [j for j, c in enumerate(curves) if c.get("spline") is not None]
     overlap = np.zeros((len(specs), len(valid)), dtype=int)
@@ -159,11 +157,11 @@ def _match_specs_to_curves(cid, digit_id, curves, specs):
         for jj, j in enumerate(valid):
             overlap[i, jj] = int(np.sum((cid == j) & (digit_id == d)))
 
-    assign = {}  # spec index -> (curve id, overlap)
+    assign = {} # spec index -> (curve id, size of the overlap)
     if valid and len(specs):
-        rows, cols = linear_sum_assignment(-overlap)  # maximise total overlap
+        rows, cols = linear_sum_assignment(-overlap) # negate, since the solver minimises
         for i, jj in zip(rows, cols):
-            if overlap[i, jj] > 0:  # never assign a curve that shares no samples
+            if overlap[i, jj] > 0: # never assign a curve that shares no samples at all
                 assign[i] = (valid[jj], int(overlap[i, jj]))
 
     matches, used = [], set()
@@ -183,16 +181,15 @@ def _match_specs_to_curves(cid, digit_id, curves, specs):
 
 def _ground_truth_strip(pipe, curve, match, cid, angles, t, digit_id, X):
     """
-    Build one 'correct' strip for a matched (digit, curve) pair.
+    Build one strip for a matched (digit, curve) pair.
 
-    Top row: the true digit's own frames on a true-angle grid -- sampled purely
-    from that digit's ground-truth observations, so it is always a single digit
-    regardless of how the detection carved up the space.
+    The top row holds the true digit's own frames on a grid of true angles. They are taken purely
+    from that digit's ground-truth observations, so the row always shows a single digit no matter
+    how the detection carved up the space.
 
-    Bottom row: the matched curve reconstructed at the coordinate that aligns to
-    each grid angle. The t<->angle alignment (direction + offset for a loop, the
-    affine map for an arc) is fitted on this digit's members of the curve, so the
-    two rows depict the same true rotation. Returns (grid_angles, top, recon).
+    The bottom row is the matched curve, reconstructed at the coordinate that aligns to each grid
+    angle. That alignment is fitted on this digit's members of the curve, so the two rows depict
+    the same true rotation.
     """
     d = match["digit"]
     is_loop = match["type"] == "loop"
@@ -222,30 +219,29 @@ def run_evaluation(
     seed=0, results_root=None, save=True, progress=None,
 ):
     """
-    Run the multi-factor evaluation for one configuration and (optionally) save.
+    Run the multi-factor evaluation for one configuration and optionally save it.
 
-    The defaults are the configuration of the run reported in the thesis
-    (`results/mnist_multi/1loop_3loop_6arc_9loop_seed0/`).
+    The defaults reproduce the stored run in `results/mnist_multi/1loop_3loop_6arc_9loop_seed0/`.
 
-    `h0_persistence_factor` / `h1_persistence_factor` > 0 replace the automatic
-    rules of §5.6 by an explicit threshold at that multiple of the median H0
-    merge scale; 0 keeps the automatic rule.
+    A positive `h0_persistence_factor` or `h1_persistence_factor` replaces the automatic detection
+    rule by an explicit threshold at that multiple of the median H0 merge scale; 0 keeps the
+    automatic rule.
 
-    Returns (summary_dict, run_dir).
+    Returns the summary dict and the directory it was written to.
     """
     def say(msg):
         if progress is not None:
             progress(msg)
 
-    if specs is None:  # three full loops + one half arc (the mixed case)
+    if specs is None: # three full loops and one half arc, the mixed case
         specs = [{"digit": 1, "start": 0, "end": 360},
                  {"digit": 3, "start": 0, "end": 360},
                  {"digit": 6, "start": 0, "end": 180},
                  {"digit": 9, "start": 0, "end": 360}]
 
-    # pin the count actually used into every spec, so the saved config says what
-    # was generated instead of leaving `samples_per` as a fallback that a
-    # per-spec "samples" may have overridden
+    # Write the count actually used into every spec, so that the saved config says what was
+    # really generated. Otherwise `samples_per` stays in there as a fallback that a per-spec
+    # "samples" may have overridden.
     specs = [{**s, "samples": int(s.get("samples", samples_per))} for s in specs]
 
     tag = (f"{_spec_tag(specs)}"
@@ -271,17 +267,17 @@ def run_evaluation(
     pipe.detect()
     pipe.apply_persistence_thresholds(h0_persistence_factor, h1_persistence_factor)
     t, cid = pipe.transform(X)
-    comp_id = component_labels(pipe, X)  # H0 component per observation
+    comp_id = component_labels(pipe, X) # H0 component per observation
 
-    # match each expected digit to the detected curve that best covers it; this
-    # drives both the 'correct' sweeps (one per expected digit) and the metrics.
+    # Match each expected digit to the curve that covers it best. This drives both the sweep
+    # figures, one row per expected digit, and the metrics.
     matches, extra_curve_ids = _match_specs_to_curves(cid, digit_id, pipe.curves_, specs)
     matched_ids = {m["curve"] for m in matches if m["curve"] is not None}
 
     # metrics
     m1 = topology_report(pipe.structure_, expected_n, expected_types,
-                         component_labels=comp_id)  # count data-backed H0 components
-    m4 = discrete_ari(comp_id, digit_id)  # H0 components vs. ground-truth digits
+                         component_labels=comp_id) # only count components that hold data
+    m4 = discrete_ari(comp_id, digit_id) # detected components against the true digits
     per_comp = _per_component_angle_errors(t, cid, angles, digit_id, pipe.curves_)
     loop_entries = _loop_entries(t, cid, angles, digit_id, pipe.curves_)
     correct_loops, extra_loops = _classify_loops(loop_entries, matched_ids)
@@ -328,34 +324,32 @@ def run_evaluation(
                  angles=angles, digit_id=digit_id)
 
         say("rendering figures ...")
-        # low-dim embedding for the scatters (top principal directions of X)
+        # a low-dimensional embedding for the scatter plots
         _, _, Vt = np.linalg.svd(X, full_matrices=False)
         Z3 = X @ Vt[:3].T
         title = f"{expected_n} rotating digits"
 
-        # de-standardize a reduced-space reconstruction back to a [0, 1] image
+        # turn a reconstruction back into a displayable [0, 1] image
         def to_image(v):
             return np.clip(np.asarray(v) * pstd + pmean, 0.0, 1.0).reshape(IMAGE_SHAPE)
 
-        # one global loop numbering, most persistent = 1. It is the only label
-        # for a loop: the same number tags its H1 triangle in the persistence
-        # diagram and its row in the sweep figures. Arcs (H0 paths, no H1
-        # triangle) get their own "arc k" numbering, sorted after the loops.
+        # One global loop numbering, where 1 is the most persistent loop. It is the only name a
+        # loop has: the same number marks it in the persistence diagram and in the sweep figures.
+        # Arcs have no marker in the diagram, so they get their own numbering after the loops.
         loop_ids = sorted(
             (j for j, c in enumerate(pipe.curves_) if c.get("type") == "loop"),
             key=lambda j: -float(pipe.curves_[j].get("persistence", 0.0)))
         loop_number = {j: k for k, j in enumerate(loop_ids, start=1)}
 
         def _curve_label(j, arc_counter):
-            """(sort key, label) for curve j; loops by number, arcs after."""
+            """The sort key and label of curve j. Loops come first, then the arcs."""
             if pipe.curves_[j].get("type") == "loop":
                 return loop_number[j], f"loop {loop_number[j]}"
             arc_counter[0] += 1
             return 10_000 + arc_counter[0], f"arc {arc_counter[0]}"
 
-        # correct sweeps: one per expected digit, its own ground-truth frames
-        # over the matched model curve, 8 frames for loops / 4 for arcs on a
-        # true-angle grid. Rows are ordered by the global loop number.
+        # One sweep per expected digit: its own ground-truth frames over the matched model curve,
+        # 8 frames for a loop and 4 for an arc, on a grid of true angles.
         correct_entries, arc_counter = [], [0]
         for m in matches:
             j = m["curve"]
@@ -369,7 +363,7 @@ def run_evaluation(
                 "true_imgs": top_imgs, "recon_imgs": recon}))
         correct_components = [c for _, c in sorted(correct_entries, key=lambda e: e[0])]
 
-        # leftover curves become model-only strips, same numbering scheme.
+        # every leftover curve becomes a model-only strip, under the same numbering
         extra_entries, arc_counter = [], [0]
         for j in extra_curve_ids:
             _, imgs = _reconstruct_along(pipe, pipe.curves_[j], 8)
@@ -377,7 +371,7 @@ def run_evaluation(
             extra_entries.append((key, (label, imgs, None)))
         extra_strips = [s for _, s in sorted(extra_entries, key=lambda e: e[0])]
 
-        # H1-triangle labels: the bare global loop number at each triangle.
+        # label each loop in the persistence diagram with its global number
         h1_labels = [
             {"birth": pipe.curves_[j]["birth"], "death": pipe.curves_[j]["death"],
              "label": str(loop_number[j])}
@@ -410,7 +404,7 @@ def run_evaluation(
 
 
 def _format_summary(summary):
-    """Compact human-readable one-block summary for logging / a status label."""
+    """Compact readable summary for logging or a status label."""
     m = summary["metrics"]
     topo = m["topology"]
 
@@ -459,3 +453,4 @@ if __name__ == "__main__":
     summary, out = run_evaluation(progress=print)
     print("\n" + _format_summary(summary))
     print("saved to", out)
+

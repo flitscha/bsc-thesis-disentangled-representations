@@ -1,3 +1,12 @@
+"""
+The "MNIST Rotation" tab, the front end of the two MNIST experiments.
+
+One digit in the table runs the single-structure evaluation, several digits the multi-structure
+one. Both go through the same 'run_evaluation' functions the standalone scripts call, so the tab
+and the command line produce the same result directories. Everything not specific to MNIST is
+inherited from demo.demo_tab.ManifoldDemoTab.
+"""
+
 import sys
 import os
 
@@ -49,9 +58,7 @@ class MNISTDemoTab(ManifoldDemoTab):
         self.multi_end = {}
         self.multi_samples = {}
 
-    # ------------------------------------------------------------------
-    # settings panel
-    # ------------------------------------------------------------------
+    # --- settings panel ---
     def _build_data_section(self):
         dpg.add_text("Data (digits to rotate)", color=_CYAN)
         dpg.add_separator()
@@ -92,7 +99,7 @@ class MNISTDemoTab(ManifoldDemoTab):
 
     def _multi_preset_clean(self):
         """
-        Load the multi-digit experiment described in the thesis: digits 1, 3, 9 as
+        Load the configuration the stored multi-digit results came from: digits 1, 3, 9 as
         full loops and 6 as a half arc, with its fitted parameters.
         """
         for d in range(10):
@@ -110,9 +117,7 @@ class MNISTDemoTab(ManifoldDemoTab):
         dpg.set_value(self.h1_factor_in, 0.0)
         dpg.set_value(self.interp_w_in, 3.0)
 
-    # ------------------------------------------------------------------
-    # data
-    # ------------------------------------------------------------------
+    # --- data ---
     def _current_specs(self):
         """Read the per-digit table into a list of dataset specs."""
         return [{"digit": d,
@@ -133,9 +138,7 @@ class MNISTDemoTab(ManifoldDemoTab):
             for s in specs)
         return f"{len(self.X)} pts from {len(specs)} digit(s): {kinds}."
 
-    # ------------------------------------------------------------------
-    # detection and evaluation
-    # ------------------------------------------------------------------
+    # --- detection and evaluation ---
     def _member_ids(self):
         return self.digit_id
 
@@ -190,9 +193,7 @@ class MNISTDemoTab(ManifoldDemoTab):
         )
         return out_dir
 
-    # ------------------------------------------------------------------
-    # rendering
-    # ------------------------------------------------------------------
+    # --- rendering ---
     def _format_t(self, t):
         return f"t = {t:.3f}  ({t * 360:.0f}°)"
 

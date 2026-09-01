@@ -1,23 +1,21 @@
 """
-Multi-frequency Fourier curve, the shared synthetic test dataset for the two
-PCA-preprocessing experiments (thesis §5.2):
+Multi-frequency Fourier curve, the synthetic test set shared by the two preprocessing studies.
 
-- `experiments/pca_preprocessing.py` measures density fit (NLL_norm),
-- `experiments/tangent_alignment.py` measures geometry (tangent error).
+`experiments/pca_preprocessing.py` uses it to measure the density fit, `experiments/
+tangent_alignment.py` to measure the tangent error.
 
-The curve is a closed 1D loop whose image spans exactly 2*M linear dimensions.
-It is randomly embedded into `AMBIENT` dimensions by an orthonormal map W
-and perturbed by small isotropic noise.
+The curve is a closed 1D loop whose image spans exactly 2*M linear dimensions. It is randomly
+embedded into `AMBIENT` dimensions by an orthonormal map W and perturbed by small isotropic noise.
 """
 
 import numpy as np
 
-# ---------- dataset configuration (shared by both experiments) --------
-M = 10 # Fourier modes -> signal spans 2*M = 20 linear dimensions
+# --- dataset configuration, shared by both studies ---
+M = 10 # Fourier modes, so the signal spans 2*M = 20 linear dimensions
 AMBIENT = 300 # ambient dimension the curve is embedded in
 N = 4000 # noisy sample points used to fit the MFA
 NOISE = 0.15 # std of the isotropic ambient noise on the samples
-CURVE_SEED = 42 # shared seed for the curve RNG so both experiments use the same curves
+CURVE_SEED = 42 # shared seed for the curve RNG, so both studies see the same curves
 
 
 def fourier_curve(t, m=M):
@@ -38,10 +36,10 @@ def random_embedding(rng, ambient=AMBIENT, m=M):
 
 def sample_curve(rng, W, n=N, noise=NOISE, m=M, grid=True):
     """
-    'n' noisy samples of the curve embedded through 'W': shape (n, ambient).
+    'n' noisy samples of the curve embedded through 'W', shape (n, ambient).
 
-    grid=True  : evenly spaced parameters
-    grid=False : independent uniform-random parameters (used for the NLL validation set)
+    grid=True spaces the parameters evenly, grid=False draws them uniformly at random, which is
+    what the validation set of the density study needs.
     """
     if grid:
         t = np.linspace(0.0, 2 * np.pi, n, endpoint=False)

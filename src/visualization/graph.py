@@ -1,10 +1,10 @@
-"""Visualization of a traversal order over the MFA component means."""
+"""Draws a traversal order over the MFA component means."""
 
 from visualization.geometry import set_axis_limits
 
 
 def visualize_traversal(ax, means, order):
-    """Draw the traversal path and number each node with its position in it."""
+    """Draw the path and number every node with its position along it."""
     D = means.shape[1]
     set_axis_limits(ax, means)
 
@@ -19,6 +19,6 @@ def visualize_traversal(ax, means, order):
 
     for idx, point in enumerate(ordered_means):
         text_pos = list(point)
-        text_pos[0] += 0.04 # offset so the label does not sit on the node
+        text_pos[0] += 0.04 # nudge the label off the node itself
         ax.text(*text_pos, str(idx), fontsize=9, color="blue", zorder=6)
 

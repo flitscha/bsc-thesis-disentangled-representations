@@ -1,4 +1,4 @@
-"""Visualization of a spline path over data points in 2D or 3D."""
+"""Draws a spline path over the data points, in 2D or 3D."""
 
 import numpy as np
 
@@ -44,16 +44,15 @@ def visualize_spline(
     color_label="Rotation angle", color_scale=(0, 360)
 ):
     """
-    Visualizes the calculated spline path up to time t in 2D or 3D.
-    Ensures a stable aspect ratio without jumping or distortion.
+    Draw the spline path up to the coordinate t, in 2D or 3D.
 
-    `colors` are the per-point values behind the colorbar; `color_label` and
-    `color_scale` describe them, since not every dataset colours by an angle.
+    `colors` holds the per-point values behind the colorbar, and `color_label` and `color_scale`
+    describe them, since not every dataset colours by an angle.
     """
     is_3d = hasattr(ax, "get_zlim")
     D = 3 if is_3d else 2
 
-    # If data has more columns than D, we ignore the rest.
+    # ignore any columns beyond the ones being drawn
     plot_data = data[:, :D]
     ranges = plot_data.max(axis=0) - plot_data.min(axis=0)
     padding = 0.1 * np.where(ranges > 0, ranges, 1.0)

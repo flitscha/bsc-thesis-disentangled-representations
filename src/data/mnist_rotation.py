@@ -1,10 +1,9 @@
 """
-Datasets of MNIST digits rotated through 0..360 degrees.
+Datasets of MNIST digits rotated through 0 to 360 degrees.
 
-Noise is added in pixel space, then X is standardized: per-pixel mean removed
-and divided by a single global scale. The returned pixel_mean / pixel_std are
-only needed to invert that for display, via
-    img = (v * pixel_std + pixel_mean).reshape(30, 30)
+Noise is added in pixel space, then X is standardized: the per-pixel mean is removed and
+everything is divided by one global scale. The returned pixel_mean and pixel_std are only there to
+undo that for display, via img = (v * pixel_std + pixel_mean).reshape(30, 30).
 """
 
 import numpy as np
@@ -15,8 +14,10 @@ def _load_mnist_images(
     digit: int = 3, n_images: int = 1, which: str = "train"
 ) -> list:
     """
-    Load up to n_images examples of `digit` from MNIST.
-    Returns list of (28, 28) float arrays in [0, 1].
+    Load up to n_images examples of `digit`, as (28, 28) float arrays in [0, 1].
+
+    Tries torchvision first, then keras. If neither is installed, falls back to a Gaussian blob so
+    that the demos still start.
     """
     try:
         import torchvision.datasets as dsets
@@ -56,7 +57,7 @@ def _load_mnist_images(
 
 
 def _rotate_frames(img: np.ndarray, angles: np.ndarray) -> list:
-    """Rotate one (28, 28) image through `angles` (deg); return list of (900,) frames."""
+    """Rotate one (28, 28) image through `angles` in degrees, returning flat (900,) frames."""
     padded = np.pad(img, 3, mode="constant", constant_values=0.0)
     frames = []
     for angle in angles:
@@ -76,15 +77,15 @@ def make_rotation_dataset(
     random_state: int = 0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Rotate MNIST digit images through 360 degrees.
+    Rotate MNIST digit images through the full circle.
 
     Returns
     -------
-    X          : (n_images * n_angles, 900) standardized (+ noise) if center=True
+    X          : (n_images * n_angles, 900), standardized and noisy if center=True
     angles     : (n_images * n_angles,) in degrees
-    pixel_mean : (900,) per-pixel mean of the clean images (0 if center=False)
-    pixel_std  : (900,) global scale of the clean images, broadcast to every
-                 pixel (all entries equal; 1 if center=False)
+    pixel_mean : (900,) per-pixel mean of the clean images, 0 if center=False
+    pixel_std  : (900,) global scale of the clean images, the same value in every entry, 1 if
+                 center=False
     """
     images = _load_mnist_images(digit, n_images)
     angles = np.linspace(0, 360, n_angles, endpoint=False)
@@ -99,10 +100,10 @@ def make_rotation_dataset(
     X = np.stack(frames)
     angles_out = np.array(angle_list)
 
-    # clean images in [0, 1] (removes rotation-interpolation over/undershoot)
+    # clip back to [0, 1], since the rotation interpolates and can over- or undershoot
     X = np.clip(X, 0.0, 1.0)
 
-    # standardization parameters are estimated on the clean images
+    # the standardization is estimated on the clean images
     pixel_mean = np.zeros(X.shape[1])
     pixel_std = np.ones(X.shape[1])
     if center:
@@ -111,7 +112,7 @@ def make_rotation_dataset(
         scale = scale if scale > 1e-8 else 1.0
         pixel_std = np.full(X.shape[1], scale)
 
-    # Add the noise before standardization, so it is spatially uniform on the actual image
+    # add the noise before standardizing, so that it is spatially uniform on the actual image
     if add_noise > 0:
         X = X + rng.normal(0, add_noise, size=X.shape)
 
@@ -131,23 +132,21 @@ def make_multi_rotation_dataset(
     """
     Several rotating digits stacked into one dataset, one component each.
 
-    A digit swept over the full circle (0..360) is a loop, a partial sweep an arc.
+    A digit swept over the full circle is a loop, a partial sweep an arc.
 
     Parameters
     ----------
-    specs : one dict per component, keys "digit" and optionally "start"/"end"
-        (degrees, default 0/360), "samples" and "image_index" (which exemplar
-        image of that digit, default 0).
-    samples_per : default frames per component, overridden by a spec's "samples".
-    center, add_noise, random_state : see make_rotation_dataset. Noise is added
-        in pixel space before one joint standardization over all frames.
+    specs : one dict per component, with the key "digit" and optionally "start"/"end" in degrees,
+        "samples", and "image_index" to pick which exemplar image of that digit to use.
+    samples_per : frames per component, overridden by a spec's own "samples".
+    center, add_noise, random_state : as in make_rotation_dataset. The noise goes on in pixel
+        space, before one joint standardization over all frames.
 
     Returns
     -------
-    X : (N, 900) standardized frames, angles : (N,) degrees within the component's
-    range, digit_id : (N,) digit value (the discrete class label),
-    meta : per spec "is_loop", "digit", "start", "end" and the index range "sl",
-    pixel_mean : (900,), pixel_std : (900,) global scale broadcast to all pixels.
+    X : (N, 900) standardized frames; angles : (N,) degrees within the component's own range;
+    digit_id : (N,) the digit itself, used as the class label; meta : per spec "is_loop", "digit",
+    "start", "end" and the index range "sl"; pixel_mean and pixel_std as above.
     """
     rng = np.random.default_rng(random_state)
     frames, angle_list, digit_list, meta = [], [], [], []
@@ -163,7 +162,7 @@ def make_multi_rotation_dataset(
         images = _load_mnist_images(digit, n_images=image_index + 1)
         img = images[min(image_index, len(images) - 1)]
 
-        # a loop closes at 360==0, so drop the duplicate endpoint; an arc keeps it
+        # on a loop 360 degrees is the same frame as 0, so drop the duplicate; an arc keeps it
         grid = np.linspace(start, end, n, endpoint=not is_loop)
         offset = len(frames)
         frames.extend(_rotate_frames(img, grid))
@@ -178,10 +177,10 @@ def make_multi_rotation_dataset(
     angles_out = np.array(angle_list)
     digit_id = np.array(digit_list, dtype=int)
 
-    # clean images in [0, 1] (removes rotation-interpolation over/undershoot)
+    # clip back to [0, 1], since the rotation interpolates and can over- or undershoot
     X = np.clip(X, 0.0, 1.0)
 
-    # Joint standardization parameters over all components' clean frames.
+    # one joint standardization over the clean frames of all components
     pixel_mean = np.zeros(X.shape[1])
     pixel_std = np.ones(X.shape[1])
     if center:

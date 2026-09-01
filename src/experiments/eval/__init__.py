@@ -1,5 +1,9 @@
 """
-Reusable evaluation of the manifold pipeline against ground-truth factors.
+Evaluation of the manifold pipeline against ground-truth factors.
+
+The protocol shared by all four experiments: the post-hoc alignment (align.py), the metrics M1 to
+M4 (metrics.py, reconstruct.py), the plots (figures.py) and the orchestrator that runs all of it
+for one fitted pipeline and writes a result directory (runner.py).
 """
 
 from experiments.eval.align import align_loop, align_arc

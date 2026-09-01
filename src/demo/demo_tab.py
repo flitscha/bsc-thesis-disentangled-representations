@@ -1,14 +1,13 @@
 """
-Shared machinery of the three manifold demo tabs (MNIST, faces, motion capture).
+The machinery shared by the three dataset tabs: MNIST, faces and motion capture.
 
-'ManifoldDemoTab' owns everything that is not specific to a dataset: the
-DearPyGui texture handling, the background plot thread with its drag throttling,
-the mouse orbit, the PNG export, and the common settings blocks (MFA, distance,
-interpolation, train, evaluate, view). A subclass supplies its dataset and its
-figures by overriding the hooks marked below; everything else is inherited.
+'ManifoldDemoTab' owns everything that is not specific to a dataset: the texture handling, the
+background plot thread with its drag throttling, the mouse orbit, the PNG export and the common
+settings blocks. A subclass supplies its own dataset and figures by overriding the hooks marked
+below, and inherits the rest.
 
-The tag of every widget is prefixed with the subclass's 'name', so several tabs
-can live in one DearPyGui context.
+Every widget tag is prefixed with the subclass's 'name', so that several tabs can live in one
+DearPyGui context.
 """
 
 import queue
@@ -31,7 +30,7 @@ MIN_TEX = 250
 MAX_TEX = 1600
 RESIZE_THRESHOLD = 25
 ROTATE_SENSITIVITY = 0.4
-PLOT_THROTTLE_SEC = 0.05  # 20 FPS while dragging
+PLOT_THROTTLE_SEC = 0.05 # 20 fps while the mouse is dragged
 
 _LABEL_WIDTH = 125
 _GREY = [150, 150, 150]
@@ -44,11 +43,11 @@ _RED = [255, 0, 0]
 class ManifoldDemoTab:
 
     # --- per-tab identity, set by the subclass ---
-    name = "demo"             # tag prefix, must be unique per tab
-    title = "Manifold Demo"   # viewport title of the standalone run()
-    intro = ""                # explanatory text at the top of the settings panel
-    eval_tooltip = ""         # what the evaluation button writes to disk
-    h0_hint = ""              # dataset-specific advice on the H0 threshold
+    name = "demo" # tag prefix, has to be unique per tab
+    title = "Manifold Demo" # window title when the tab is run on its own
+    intro = "" # the text at the top of the settings panel
+    eval_tooltip = "" # describes what the evaluation button writes to disk
+    h0_hint = "" # advice on the H0 threshold, specific to the dataset
     panel_width = 380
     wrap = 340
 
@@ -85,8 +84,8 @@ class ManifoldDemoTab:
         # detection artifacts
         self.diagram = None
         self.curves = None
-        self.curve_projections = None   # each curve sampled and projected to PCA space
-        self.curve_labels = []          # majority ground-truth class per curve
+        self.curve_projections = None # each curve sampled and projected to PCA space
+        self.curve_labels = [] # majority ground-truth class per curve
         self.selected_component = 0
         self.component_label_to_idx = {}
 
@@ -95,15 +94,13 @@ class ManifoldDemoTab:
         self.export_status_lbl = None
         self.eval_lbl = None
 
-    # ------------------------------------------------------------------
-    # hooks a subclass must implement
-    # ------------------------------------------------------------------
+    # --- hooks a subclass must implement ---
     def _build_data_section(self):
         """The dataset table plus '_add_noise_seed_generate'."""
         raise NotImplementedError
 
     def _build_model_section(self):
-        """The MFA block; use '_add_model_inputs' with this dataset's defaults."""
+        """The MFA block. Call '_add_model_inputs' with this dataset's defaults."""
         raise NotImplementedError
 
     def _current_specs(self):
@@ -112,11 +109,10 @@ class ManifoldDemoTab:
 
     def _load_data(self, specs, report):
         """
-        Generate the data for 'specs' and set self.X and the per-tab arrays.
+        Generate the data for 'specs' and fill self.X and the per-tab arrays.
 
-        'report(done, total)' updates the status line. Returns the message shown
-        once loading succeeded, or None to abort quietly (the hook then reports
-        the failure itself).
+        'report(done, total)' updates the status line. Returns the message to show once loading
+        succeeded, or None to abort quietly, in which case the hook reports the failure itself.
         """
         raise NotImplementedError
 
@@ -128,11 +124,9 @@ class ManifoldDemoTab:
         """Run the offline evaluation and return the output directory."""
         raise NotImplementedError
 
-    # ------------------------------------------------------------------
-    # hooks with a usable default
-    # ------------------------------------------------------------------
+    # --- hooks with a usable default ---
     def _member_ids(self):
-        """Per-observation ground-truth class, used to name the detected curves."""
+        """The ground-truth class of every observation, used to name the detected curves."""
         return None
 
     def _member_name(self, value):
@@ -140,11 +134,12 @@ class ManifoldDemoTab:
         return str(value)
 
     def _detect(self, exp):
-        """Detection step; returns the list of curves.
+        """
+        Run the detection and return the list of curves.
 
-        Detects with the automatic rules first: the panel's H0/H1 thresholds are
-        multiples of the barcode's own merge scale, which is only known once a
-        detection has run (a no-op while both are 0).
+        The automatic rules go first, because the panel's H0 and H1 thresholds are multiples of
+        the barcode's own merge scale, and that is only known once a detection has run. While both
+        are 0 the second call does nothing.
         """
         exp.detect()
         exp.apply_persistence_thresholds(
@@ -172,9 +167,7 @@ class ManifoldDemoTab:
         self._add_tda_inputs()
         self._add_interp_input()
 
-    # ------------------------------------------------------------------
-    # panel construction
-    # ------------------------------------------------------------------
+    # --- panel construction ---
     def start_workers(self):
         threading.Thread(target=self._plot_worker, daemon=True).start()
 
@@ -222,7 +215,7 @@ class ManifoldDemoTab:
 
     def _add_noise_seed_generate(self, noise_label, noise_default, noise_tooltip,
                                  noise_step=0.01, noise_format=None, seed_default=0):
-        """Noise field, seed field and the 'Generate Data' button."""
+        """The noise field, the seed field and the 'Generate Data' button."""
         kwargs = {} if noise_format is None else {"format": noise_format}
         self.noise_in = dpg.add_input_float(
             label=noise_label, default_value=noise_default, min_value=0.0,
@@ -274,7 +267,7 @@ class ManifoldDemoTab:
                          "the geodesic distance.", wrap=260)
 
     def _add_tda_inputs(self):
-        """The two persistence thresholds, as multiples of the merge scale."""
+        """The two persistence thresholds, given as multiples of the merge scale."""
         self.h0_factor_in = dpg.add_input_float(
             label="H0 threshold (0 = auto)", default_value=0.0, min_value=0.0,
             step=0.1, format="%.2f", width=_LABEL_WIDTH,
@@ -284,8 +277,8 @@ class ManifoldDemoTab:
                 "How persistent a connected component has to be to count. "
                 "0 uses the automatic largest-gap rule; a value > 0 replaces it "
                 "by an explicit threshold at that multiple of the median H0 "
-                "merge scale, which keeps it free of the data scale. "
-                + self.h0_hint, wrap=260)
+                "merge scale, which keeps it free of the data scale. " +
+                self.h0_hint, wrap=260)
 
         self.h1_factor_in = dpg.add_input_float(
             label="H1 threshold (0 = auto)", default_value=0.0, min_value=0.0,
@@ -308,7 +301,7 @@ class ManifoldDemoTab:
                          "spline. 0 = pure minimal-curvature interpolation.", wrap=260)
 
     def _build_view_sections(self):
-        """Render mode, component selector and the t slider."""
+        """The render mode, the component selector and the t slider."""
         dpg.add_text("Render mode", color=_CYAN)
         dpg.add_separator()
         self.mode_var = dpg.add_radio_button(
@@ -350,9 +343,7 @@ class ManifoldDemoTab:
                 dpg.add_file_extension(".png")
                 dpg.add_file_extension(".*")
 
-    # ------------------------------------------------------------------
-    # mouse orbit and throttling
-    # ------------------------------------------------------------------
+    # --- mouse orbit and throttling ---
     def _register_mouse_handlers(self):
         with dpg.handler_registry():
             dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Left,
@@ -413,7 +404,7 @@ class ManifoldDemoTab:
             self._start_throttle_timer()
 
     def _on_mode_change(self):
-        """Fall back to 'samples' if the chosen mode needs a detection first."""
+        """Fall back to 'samples' when the chosen mode would need a detection first."""
         chosen = dpg.get_value(self.mode_var)
         needs_detection = {"spline": self.spline, "persistence": self.diagram}
         if chosen in needs_detection and not needs_detection[chosen]:
@@ -430,11 +421,9 @@ class ManifoldDemoTab:
         if dpg.get_value(self.mode_var) == "spline":
             self._request_async_plot()
 
-    # ------------------------------------------------------------------
-    # texture handling
-    # ------------------------------------------------------------------
+    # --- texture handling ---
     def _swap_texture(self, width, height, data=None):
-        """Replace the plot texture; DearPyGui textures cannot be resized."""
+        """Replace the plot texture, since a DearPyGui texture cannot be resized in place."""
         new_tag = f"{self._texture_tag_base}_{self._texture_counter}"
         self._texture_counter += 1
 
@@ -472,9 +461,7 @@ class ManifoldDemoTab:
         self._swap_texture(new_w, new_h)
         self._request_async_plot()
 
-    # ------------------------------------------------------------------
-    # export
-    # ------------------------------------------------------------------
+    # --- export ---
     def _on_export_path_chosen(self, sender, app_data):
         path = app_data["file_path_name"]
         if not path.lower().endswith(".png"):
@@ -498,21 +485,19 @@ class ManifoldDemoTab:
 
         self._status(self.export_status_lbl, f"Saved: {path}", _GREEN)
 
-    # ------------------------------------------------------------------
-    # data, training and evaluation
-    # ------------------------------------------------------------------
+    # --- data, training and evaluation ---
     @staticmethod
     def _status(label, text, color):
         dpg.set_value(label, text)
         dpg.configure_item(label, color=color)
 
     def _seed_value(self):
-        """Read the seed field; a negative value means random (None)."""
+        """Read the seed field, where a negative value means random."""
         seed = dpg.get_value(self.seed_in)
         return None if seed < 0 else seed
 
     def _concrete_seed(self):
-        """A seed to save with a run; draws one if the field says 'random'."""
+        """The seed to save with a run. Draws one if the field is set to random."""
         seed = self._seed_value()
         return int(np.random.randint(2**31)) if seed is None else seed
 
@@ -586,7 +571,7 @@ class ManifoldDemoTab:
         self._request_async_plot()
 
     def _topology_counts(self):
-        """(H0 components backed by data, detected loops, detected paths)."""
+        """The number of components backed by data, of detected loops and of detected paths."""
         n_components = int(np.unique(component_labels(self.exp, self.X)).size)
         n_loops = sum(c["type"] == "loop" for c in self.curves)
         n_paths = sum(c["type"] == "path" for c in self.curves)
@@ -611,9 +596,7 @@ class ManifoldDemoTab:
         except Exception as exc:
             self._status(self.eval_lbl, f"Evaluation failed: {exc}", _RED)
 
-    # ------------------------------------------------------------------
-    # detected curves
-    # ------------------------------------------------------------------
+    # --- detected curves ---
     def _component_labels(self):
         """One label per detected curve, naming the class it mostly covers."""
         if not self.curves:
@@ -669,9 +652,7 @@ class ManifoldDemoTab:
             return self.curve_labels[self.selected_component]
         return None
 
-    # ------------------------------------------------------------------
-    # plotting
-    # ------------------------------------------------------------------
+    # --- plotting ---
     def _plot_state(self):
         state = {
             "mode": dpg.get_value(self.mode_var),
@@ -732,3 +713,4 @@ class ManifoldDemoTab:
         dpg.show_viewport()
         dpg.start_dearpygui()
         dpg.destroy_context()
+
