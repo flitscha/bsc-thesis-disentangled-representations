@@ -7,7 +7,7 @@ Universität Innsbruck, Department of Computer Science.
 
 High-dimensional data usually has far fewer degrees of freedom than it has dimensions.
 A 900-pixel image of one handwritten digit turned through a full circle lives in a 900-dimensional space, but only a single number really varies: the angle.
-The images trace out a one-dimensional curve — a *manifold* — inside that huge space, and here the curve closes into a loop, since turning by 360° returns to the start.
+The images trace out a one-dimensional curve (a *manifold*) inside that huge space, and here the curve closes into a loop, since turning by 360° returns to the start.
 
 The quantities that generate the data this way are its **generative factors**.
 A representation is **disentangled** if it recovers them as separate coordinates:
@@ -94,7 +94,7 @@ python -m data.mocap    # CMU recordings     -> data/cmu_mocap/
 
 The repository follows the thesis one file per step. `§` refers to the section of the thesis a file implements.
 
-### The pipeline — §5 Method
+### The pipeline - §5 Method
 
 One module per step, all behind `ManifoldPipeline`.
 
@@ -116,13 +116,13 @@ Two small studies justify the preprocessing step:
 | `experiments/tangent_alignment.py` | 5.2 | The same sweep, but measuring the angle between the estimated and the true manifold tangents. |
 | `data/fourier_curve.py` | 5.2 | The synthetic ground truth both studies run on: a closed curve of known dimension, randomly embedded in 300 dimensions. |
 
-### The evaluation — §6 Experiments
+### The evaluation - §6 Experiments
 
 `experiments/eval/` is the shared protocol, one script per experiment on top of it.
 
 | File | § | What it does |
 | --- | --- | --- |
-| `experiments/eval/align.py` | 6.1 | Fits out the freedoms an unsupervised model cannot recover — direction and offset for a loop, an affine map for an arc — so what is left is genuine error. |
+| `experiments/eval/align.py` | 6.1 | Fits out the freedoms an unsupervised model cannot recover - direction and offset for a loop, an affine map for an arc - so what is left is genuine error. |
 | `experiments/eval/metrics.py` | 6.1 | M1 topology (H0 and H1 against the expected ones), M2 residual factor error, M4 adjusted Rand index of the detected components. |
 | `experiments/eval/reconstruct.py` | 6.1 | M3: the reconstruction error split into the PCA floor, the MFA floor and the full round trip through the learned curve. |
 | `experiments/eval/figures.py` | 6.1 | The plots: persistence diagram, component scatter, residual, and the image / pose strips. |
@@ -139,8 +139,8 @@ Two small studies justify the preprocessing step:
 | `data/mnist_rotation.py` | 6.2, 6.4 | Rotates MNIST digits through a full or partial circle; a full sweep is a loop, a partial one an arc. |
 | `data/faces.py` | 6.3 | Renders grayscale faces from the ICT-FaceKit morphable model, sweeping one blendshape or head rotation per face. |
 | `data/mocap.py` | 6.5 | Reads CMU motion capture recordings, runs forward kinematics on them and cuts each motion into repetitions along a physical signal. |
-| `data/basic_manifolds.py` | — | Toy manifolds with known topology (circle, torus, two circles, linked circles, …), the ground truth of the demos. |
-| `data/synthetic.py` | — | Turns a toy manifold name into a point cloud, optionally embedded in a higher-dimensional space with noise. |
+| `data/basic_manifolds.py` | - | Toy manifolds with known topology (circle, torus, two circles, linked circles, …), the ground truth of the demos. |
+| `data/synthetic.py` | - | Turns a toy manifold name into a point cloud, optionally embedded in a higher-dimensional space with noise. |
 
 ### Demo application and plotting
 
@@ -150,15 +150,15 @@ Two small studies justify the preprocessing step:
 | `demo/demo_synthetic.py` | - | Tab *Synthetic Data*: the fitted MFA components drawn over a toy manifold. |
 | `demo/demo_manifold_1d.py` | 5.5 | Tab *Loop Detection*: the traversal baseline, stepping through MFA, graph, ordering and spline. |
 | `demo/demo_tda.py` | 5.6 | Tab *Topology (TDA)*: components and loops on toy manifolds the baseline cannot handle, next to the persistence diagram. |
-| `demo/demo_tab.py` | — | The machinery all three dataset tabs share: rendering thread, camera, settings blocks, evaluation button. |
+| `demo/demo_tab.py` | - | The machinery all three dataset tabs share: rendering thread, camera, settings blocks, evaluation button. |
 | `demo/demo_mnist.py` | 6.2, 6.4 | Tab *MNIST Rotation* |
 | `demo/demo_faces.py` | 6.3 | Tab *Faces* |
 | `demo/demo_mocap.py` | 6.5 | Tab *Motion Capture* |
-| `visualization/geometry.py` | — | Drawing of single Gaussian components (ellipse, ellipsoid, line, plane) |
-| `visualization/gmm.py` | — | A fitted mixture over its data, in 2D or 3D. |
-| `visualization/spline.py` | — | A spline path up to the current coordinate, over the data points. |
-| `visualization/graph.py` | — | A traversal order over the chart means. |
-| `visualization/mnist.py` | — | The image frames, the 3D PCA view and the persistence diagram of the demo tabs. |
-| `visualization/faces.py` | — | The same for faces |
-| `visualization/mocap.py` | — | The same for poses |
+| `visualization/geometry.py` | - | Drawing of single Gaussian components (ellipse, ellipsoid, line, plane) |
+| `visualization/gmm.py` | - | A fitted mixture over its data, in 2D or 3D. |
+| `visualization/spline.py` | - | A spline path up to the current coordinate, over the data points. |
+| `visualization/graph.py` | - | A traversal order over the chart means. |
+| `visualization/mnist.py` | - | The image frames, the 3D PCA view and the persistence diagram of the demo tabs. |
+| `visualization/faces.py` | - | The same for faces |
+| `visualization/mocap.py` | - | The same for poses |
 
